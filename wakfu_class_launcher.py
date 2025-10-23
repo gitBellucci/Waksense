@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Wakfu Class Launcher - Main Application
-Detects Crâ and Iop players in combat and provides a menu to launch appropriate trackers
+Detects Cra and Iop players in combat and provides a menu to launch appropriate trackers
 """
 
 import sys
@@ -132,7 +132,7 @@ class LogMonitorThread(QThread):
             "Torgnole", "Tannée", "Épée de Iop", "Bond", "Focus", "Éventrail", "Uppercut"
         ]
         
-        # Crâ spells
+        # Cra spells
         cra_spells = [
             "Flèche criblante", "Flèche fulminante", "Flèche d'immolation", 
             "Flèche enflammée", "Flèche Ardente", "Flèche explosive", 
@@ -146,7 +146,7 @@ class LogMonitorThread(QThread):
         if any(iop_spell in spell_name for iop_spell in iop_spells):
             return "Iop"
         elif any(cra_spell in spell_name for cra_spell in cra_spells):
-            return "Crâ"
+            return "Cra"
         
         return None
     
@@ -332,7 +332,7 @@ class DetectionOverlay(QWidget):
             
             if class_name == "Iop":
                 icon_file = icon_path / "iopicon.png"
-            elif class_name == "Crâ":
+            elif class_name == "Cra":
                 icon_file = icon_path / "craicon.png"
             else:
                 icon_file = None
@@ -348,7 +348,7 @@ class DetectionOverlay(QWidget):
                 # Fallback icon based on class
                 if class_name == "Iop":
                     icon_label.setText("⚔")
-                elif class_name == "Crâ":
+                elif class_name == "Cra":
                     icon_label.setText("🏹")
                 icon_label.setStyleSheet("font-size: 16px; color: #ffffff;")
             
@@ -370,7 +370,7 @@ class DetectionOverlay(QWidget):
                         border: 1px solid rgba(255, 107, 53, 0.6);
                     }
                 """)
-            elif class_name == "Crâ":
+            elif class_name == "Cra":
                 name_label.setStyleSheet("""
                     QLabel {
                         font-size: 11px;
@@ -439,7 +439,7 @@ class DetectionOverlay(QWidget):
                         background-color: rgba(255, 107, 53, 0.2);
                     }
                 """)
-            elif class_name == "Crâ":
+            elif class_name == "Cra":
                 button.setStyleSheet("""
                     QPushButton {
                         background-color: transparent;
@@ -505,7 +505,7 @@ class DetectionOverlay(QWidget):
                                             border: 2px solid rgba(255, 107, 53, 1.0);
                                         }
                                     """)
-                                elif class_name == "Crâ":
+                                elif class_name == "Cra":
                                     widget.name_label.setStyleSheet("""
                                         QLabel {
                                             font-size: 11px;
@@ -533,7 +533,7 @@ class DetectionOverlay(QWidget):
                                             border: 1px solid rgba(255, 107, 53, 0.6);
                                         }
                                     """)
-                                elif class_name == "Crâ":
+                                elif class_name == "Cra":
                                     widget.name_label.setStyleSheet("""
                                         QLabel {
                                             font-size: 11px;
@@ -614,7 +614,7 @@ class ClassButton(QPushButton):
         icon_path = base_dir / "img" / "breedsicons"
         if self.class_name == "Iop":
             icon_file = icon_path / "iopicon.png"
-        elif self.class_name == "Crâ":
+        elif self.class_name == "Cra":
             icon_file = icon_path / "craicon.png"
         else:
             icon_file = None
@@ -652,7 +652,7 @@ class ClassButton(QPushButton):
                     background-color: rgba(255, 107, 53, 0.35);
                 }
             """)
-        elif self.class_name == "Crâ":
+        elif self.class_name == "Cra":
             self.setStyleSheet("""
                 QPushButton {
                     background-color: rgba(74, 158, 255, 0.15);
@@ -699,7 +699,7 @@ class ClassButton(QPushButton):
                 if self.class_name == "Iop":
                     # Launch Waksense.exe with --iop argument
                     self.tracker_process = subprocess.Popen([sys.executable, "--iop"])
-                elif self.class_name == "Crâ":
+                elif self.class_name == "Cra":
                     # Launch Waksense.exe with --cra argument
                     self.tracker_process = subprocess.Popen([sys.executable, "--cra"])
                 else:
@@ -708,8 +708,8 @@ class ClassButton(QPushButton):
                 # Running as Python script - look for Python files
                 if self.class_name == "Iop":
                     script_path = Path("Iop/wakfu_iop_resource_tracker.py")
-                elif self.class_name == "Crâ":
-                    script_path = Path("Crâ/wakfu_resource_tracker_fullscreen.py")
+                elif self.class_name == "Cra":
+                    script_path = Path("Cra/wakfu_resource_tracker_fullscreen.py")
                 else:
                     return
                 
@@ -800,7 +800,7 @@ class ClassButton(QPushButton):
                         background-color: rgba(255, 107, 53, 0.35);
                     }
                 """)
-        elif self.class_name == "Crâ":
+        elif self.class_name == "Cra":
             if self.is_active:
                 self.setStyleSheet("""
                     QPushButton {
@@ -1158,7 +1158,7 @@ class WakfuClassLauncher(QMainWindow):
         iop_scroll.setMaximumWidth(220)  # Maximum width constraint
         columns_layout.addWidget(iop_scroll)
         
-        # Crâ scrollable area
+        # Cra scrollable area
         cra_scroll = QScrollArea()
         cra_scroll.setWidgetResizable(True)
         cra_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -1183,7 +1183,7 @@ class WakfuClassLauncher(QMainWindow):
             }
         """)
         
-        # Crâ buttons container (no background)
+        # Cra buttons container (no background)
         self.cra_buttons_container = QWidget()
         self.cra_buttons_container.setStyleSheet("""
             QWidget {
@@ -1714,7 +1714,7 @@ class WakfuClassLauncher(QMainWindow):
             if class_name == "Iop":
                 self.iop_buttons_layout.addWidget(container)
                 self.iop_buttons_container.show()  # Ensure container is visible
-            elif class_name == "Crâ":
+            elif class_name == "Cra":
                 self.cra_buttons_layout.addWidget(container)
                 self.cra_buttons_container.show()  # Ensure container is visible
             
@@ -1812,7 +1812,7 @@ class WakfuClassLauncher(QMainWindow):
                     # Add container to appropriate column
                     if class_name == "Iop":
                         self.iop_buttons_layout.addWidget(container)
-                    elif class_name == "Crâ":
+                    elif class_name == "Cra":
                         self.cra_buttons_layout.addWidget(container)
                         
                     print(f"DEBUG: Personnage sauvegardé chargé {player_name} ({class_name})")
@@ -1959,7 +1959,7 @@ def main():
             return
         elif "--cra" in sys.argv:
             # Launch CRA tracker directly
-            from Crâ.wakfu_resource_tracker_fullscreen import main as cra_main
+            from Cra.wakfu_resource_tracker_fullscreen import main as cra_main
             cra_main()
             return
     
