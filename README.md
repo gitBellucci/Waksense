@@ -72,7 +72,7 @@ if self.last_charge_cast and "[Information (combat)]" in line:
 
 ## 📋 Vue d'ensemble
 
-Le tracker Crâ est un **overlay transparent** qui surveille en temps réel les ressources de la classe Crâ dans Wakfu. Il suit l'**Affûtage**, la **Précision**, les **Pointes affûtées**, les **Balises affûtées** et le buff **Tir précis**.
+Suivi de l'**Affûtage**, la **Précision**, les **Pointes affûtées**, les **Balises affûtées** et le buff **Tir précis**.
 
 ![2025-10-2320-47-03-ezgif com-crop (1)](https://github.com/user-attachments/assets/ef3ca2ac-5f00-4dd5-a13d-b97f4f444a35)
 
@@ -135,6 +135,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
