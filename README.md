@@ -21,9 +21,9 @@
 3. Lancez `src/main.py`
 
 
-## 🎯 Fonctionnalités
+## Fonctionnalités
 
-### 🗡️ Tracker Iop
+### Tracker Iop
 - **Suivi des ressources** : PA, PM, PW en temps réel
 - **Compteurs de buffs** : Concentration, Courroux, Préparation
 - **Timeline des sorts** : Historique des sorts lancés avec coûts
@@ -31,15 +31,15 @@
 
 ![Iopressources-ezgif com-speed (2) (2)](https://github.com/user-attachments/assets/9c7feb55-ee75-45e1-b894-2cd392925a2c)
 
-# 🗡️ Gestion des Sorts Spéciaux Iop - Charge, Étendard, Bond avec Talents
+# Gestion des Sorts Spéciaux Iop - Charge, Étendard, Bond avec Talents
 
 ## Vue d'ensemble
 
 Le tracker Iop gère intelligemment les sorts avec des mécaniques de coût variables basées sur les talents et les conditions de jeu. Ces sorts nécessitent une analyse en deux étapes : **détection initiale du sort**, puis **ajustement du coût** selon les informations supplémentaires.
 
-## ⚡ Charge - Coût basé sur la distance
+## Charge - Coût basé sur la distance
 
-### 🔍 Mécanisme de détection
+### Mécanisme de détection
 ```python
 # Détection initiale
 if spell_name == "Charge":
@@ -48,14 +48,14 @@ if spell_name == "Charge":
     # Affichage immédiat à 1PA dans la timeline
 ```
 
-### 📏 Ajustement selon la distance
+### Ajustement selon la distance
 Le tracker surveille la ligne suivante pour déterminer la distance parcourue :
 
 - **1 case** : `"Se rapproche de 1 case"` → **2 PA**
 - **2 cases** : `"Se rapproche de 2 cases"` → **3 PA**
 - **Distance par défaut** : **1 PA** (si aucune info de distance)
 
-### 🎯 Logique d'implémentation
+### Logique d'implémentation
 ```python
 if self.last_charge_cast and "[Information (combat)]" in line:
     if "Se rapproche de 1 case" in line:
@@ -68,7 +68,7 @@ if self.last_charge_cast and "[Information (combat)]" in line:
 
 ![2025-10-2318-49-07-ezgif com-speed (1)](https://github.com/user-attachments/assets/3cdce712-cff2-4a08-bcf7-8fc8b8424811)
 
-# 🏹 Guide du Tracker Crâ - Système de Gestion des Ressources
+# Guide du Tracker Crâ - Système de Gestion des Ressources
 
 ## 📋 Vue d'ensemble
 
@@ -76,7 +76,7 @@ Suivi de l'**Affûtage**, la **Précision**, les **Pointes affûtées**, les **B
 
 ![2025-10-2320-47-03-ezgif com-crop (1)](https://github.com/user-attachments/assets/ef3ca2ac-5f00-4dd5-a13d-b97f4f444a35)
 
-## 🔍 Système de Détection
+## Système de Détection
 
 #### 📊 Passif "Esprit Affûté"
 ```python
@@ -135,6 +135,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
