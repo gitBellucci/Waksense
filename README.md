@@ -11,6 +11,9 @@
 - **Système de combo** : Suivi des combos Iop avec animations
 - **Détection intelligente** : Coûts variables selon les procs (Impétueux, Charge, etc.)
 
+![Iopressources-ezgif com-speed (2) (2)](https://github.com/user-attachments/assets/9c7feb55-ee75-45e1-b894-2cd392925a2c)
+
+
 ### 🏹 Tracker Crâ
 - **Suivi des ressources** : PA, PM, PW en temps réel
 - **Compteurs de buffs** : Concentration, Affûtage, Précision
@@ -62,6 +65,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
