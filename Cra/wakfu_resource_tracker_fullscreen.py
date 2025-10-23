@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wakfu Crâ Class Resource Tracker - Full Screen Overlay System
+Wakfu Cra Class Resource Tracker - Full Screen Overlay System
 Full-screen transparent overlay with draggable icons anywhere on screen
 Tracks Affûtage and Précision resources in real-time from chat logs
 """
@@ -498,11 +498,11 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         
         # Turn-based visibility system
         self.tracked_player_name = None  # Track the player we're monitoring
-        self.is_cra_turn = False  # Track if it's the Crâ's turn
+        self.is_cra_turn = False  # Track if it's the Cra's turn
         self.overlay_visible = False  # Track if overlay should be visible
         self.last_spell_caster = None  # Track the last player who cast a spell
         
-        # Crâ spells list for turn detection
+        # Cra spells list for turn detection
         self.cra_spells = [
             "Flèche criblante", "Flèche fulminante", "Flèche d'immolation", 
             "Flèche enflammée", "Flèche Ardente", "Flèche explosive", 
@@ -520,8 +520,8 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         self.positions_locked = False
         # Get the directory where the script is located (works for both script and executable)
         if getattr(sys, 'frozen', False):
-            # Running as executable - look in the bundled Crâ folder
-            base_dir = Path(sys._MEIPASS) / "Crâ"
+            # Running as executable - look in the bundled Cra folder
+            base_dir = Path(sys._MEIPASS) / "Cra"
         else:
             # Running as script
             base_dir = Path(__file__).parent
@@ -570,8 +570,8 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         # Icon paths
         # Get the directory where the script is located (works for both script and executable)
         if getattr(sys, 'frozen', False):
-            # Running as executable - look in the bundled Crâ folder
-            base_dir = Path(sys._MEIPASS) / "Crâ"
+            # Running as executable - look in the bundled Cra folder
+            base_dir = Path(sys._MEIPASS) / "Cra"
         else:
             # Running as script
             base_dir = Path(__file__).parent
@@ -723,7 +723,7 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
     def show_debug_info(self):
         """Show debug information"""
         debug_text = f"""
-Wakfu Crâ Resource Tracker - Debug Info
+Wakfu Cra Resource Tracker - Debug Info
 =====================================
 Affûtage: {self.affutage}/100
 Précision: {self.precision}/300
@@ -742,7 +742,7 @@ Fichier log: {self.log_file}
         screen_geometry = screen.geometry()
         
         # Set window to full screen
-        self.setWindowTitle("Wakfu Crâ Resource Tracker - Full Screen Overlay")
+        self.setWindowTitle("Wakfu Cra Resource Tracker - Full Screen Overlay")
         self.setGeometry(screen_geometry)
         
         # Make window transparent, always on top, but visible in taskbar
@@ -1167,24 +1167,24 @@ Fichier log: {self.log_file}
                 # Track the last spell caster for turn end detection
                 self.last_spell_caster = caster_name
                 
-                # Check if this is a Crâ spell
+                # Check if this is a Cra spell
                 is_cra_spell = any(cra_spell in spell_name for cra_spell in self.cra_spells)
                 
                 if is_cra_spell:
-                    # Set tracked player on first Crâ spell cast
+                    # Set tracked player on first Cra spell cast
                     if self.tracked_player_name is None:
                         self.tracked_player_name = caster_name
-                        print(f"DEBUG: Crâ player tracked: {caster_name}")
+                        print(f"DEBUG: Cra player tracked: {caster_name}")
                     
-                    # Show overlay if the tracked Crâ casts a spell
+                    # Show overlay if the tracked Cra casts a spell
                     if caster_name == self.tracked_player_name:
                         self.is_cra_turn = True
                         self.overlay_visible = True
-                        print(f"DEBUG: Crâ turn started - overlay shown for '{spell_name}'")
+                        print(f"DEBUG: Cra turn started - overlay shown for '{spell_name}'")
                 else:
-                    # Check if this is the tracked player casting a non-Crâ spell
+                    # Check if this is the tracked player casting a non-Cra spell
                     if caster_name == self.tracked_player_name:
-                        print(f"DEBUG: Tracked Crâ '{caster_name}' cast non-Crâ spell '{spell_name}' - overlay remains visible")
+                        print(f"DEBUG: Tracked Cra '{caster_name}' cast non-Cra spell '{spell_name}' - overlay remains visible")
         
         # Turn end detection
         if "secondes reportées pour le tour suivant" in line:
@@ -1195,20 +1195,20 @@ Fichier log: {self.log_file}
             print(f"DEBUG: Turn end detected - last spell caster was: '{turn_owner}' (tracked: '{self.tracked_player_name}')")
             
             if turn_owner and self.tracked_player_name and turn_owner == self.tracked_player_name:
-                # The tracked Crâ is passing turn - hide overlay
+                # The tracked Cra is passing turn - hide overlay
                 self.is_cra_turn = False
                 self.overlay_visible = False
-                print(f"DEBUG: Crâ turn ended - overlay hidden (turn passed by {turn_owner})")
+                print(f"DEBUG: Cra turn ended - overlay hidden (turn passed by {turn_owner})")
             elif turn_owner:
                 # Different player is passing turn - overlay remains as is
                 print(f"DEBUG: Turn passed by different player '{turn_owner}' - overlay remains {'visible' if self.overlay_visible else 'hidden'}")
             else:
                 # No recent spell caster - assume it's the tracked player's turn ending
-                print(f"DEBUG: No recent spell caster - assuming tracked Crâ's turn ending")
+                print(f"DEBUG: No recent spell caster - assuming tracked Cra's turn ending")
                 if self.tracked_player_name:
                     self.is_cra_turn = False
                     self.overlay_visible = False
-                    print(f"DEBUG: Crâ turn ended - overlay hidden (assumed turn end)")
+                    print(f"DEBUG: Cra turn ended - overlay hidden (assumed turn end)")
                 else:
                     print(f"DEBUG: No tracked player set - cannot determine turn owner")
         
