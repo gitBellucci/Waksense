@@ -67,9 +67,7 @@ if self.last_charge_cast and "[Information (combat)]" in line:
         self.spell_cost_map["Charge"] = "3 PA"
 ```
 
-
-Uploading 2025-10-2318-49-07-ezgif.com-video-to-gif-converter.mp4…
-
+![2025-10-2318-49-07-ezgif com-speed (1)](https://github.com/user-attachments/assets/3cdce712-cff2-4a08-bcf7-8fc8b8424811)
 
 
 ### 🏹 Tracker Crâ
@@ -105,6 +103,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
