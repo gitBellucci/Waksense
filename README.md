@@ -13,19 +13,40 @@
 
 ![Iopressources-ezgif com-speed (2) (2)](https://github.com/user-attachments/assets/9c7feb55-ee75-45e1-b894-2cd392925a2c)
 
-🗡️ Gestion des Sorts Spéciaux Iop - Charge, Étendard, Bond avec Talents
-Vue d'ensemble
-Le tracker Iop gère intelligemment les sorts avec des mécaniques de coût variables basées sur les talents et les conditions de jeu. Ces sorts nécessitent une analyse en deux étapes : détection initiale du sort, puis ajustement du coût selon les informations supplémentaires.
-⚡ Charge - Coût basé sur la distance
-🔍 Mécanisme de détection
-📏 Ajustement selon la distance
+# 🗡️ Gestion des Sorts Spéciaux Iop - Charge, Étendard, Bond avec Talents
+
+## Vue d'ensemble
+
+Le tracker Iop gère intelligemment les sorts avec des mécaniques de coût variables basées sur les talents et les conditions de jeu. Ces sorts nécessitent une analyse en deux étapes : **détection initiale du sort**, puis **ajustement du coût** selon les informations supplémentaires.
+
+## ⚡ Charge - Coût basé sur la distance
+
+### 🔍 Mécanisme de détection
+```python
+# Détection initiale
+if spell_name == "Charge":
+    self.last_charge_cast = True
+    self.spell_cost_map["Charge"] = "1 PA"  # Coût par défaut
+    # Affichage immédiat à 1PA dans la timeline
+```
+
+### 📏 Ajustement selon la distance
 Le tracker surveille la ligne suivante pour déterminer la distance parcourue :
-1 case : "Se rapproche de 1 case" → 2 PA
-2 cases : "Se rapproche de 2 cases" → 3 PA
-Distance par défaut : 1 PA (si aucune info de distance)
-🎯 Logique d'implémentation
 
+- **1 case** : `"Se rapproche de 1 case"` → **2 PA**
+- **2 cases** : `"Se rapproche de 2 cases"` → **3 PA**
+- **Distance par défaut** : **1 PA** (si aucune info de distance)
 
+### 🎯 Logique d'implémentation
+```python
+if self.last_charge_cast and "[Information (combat)]" in line:
+    if "Se rapproche de 1 case" in line:
+        self.timeline_entries[-1]['cost'] = "2PA"
+        self.spell_cost_map["Charge"] = "2 PA"
+    elif "Se rapproche de 2 cases" in line:
+        self.timeline_entries[-1]['cost'] = "3PA"
+        self.spell_cost_map["Charge"] = "3 PA"
+```
 
 ### 🏹 Tracker Crâ
 - **Suivi des ressources** : PA, PM, PW en temps réel
@@ -78,6 +99,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
