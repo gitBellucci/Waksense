@@ -67,6 +67,11 @@ if self.last_charge_cast and "[Information (combat)]" in line:
         self.spell_cost_map["Charge"] = "3 PA"
 ```
 
+
+Uploading 2025-10-2318-49-07-ezgif.com-video-to-gif-converter.mp4…
+
+
+
 ### 🏹 Tracker Crâ
 - **Suivi des ressources** : PA, PM, PW en temps réel
 - **Compteurs de buffs** : Concentration, Affûtage, Précision
@@ -100,6 +105,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
