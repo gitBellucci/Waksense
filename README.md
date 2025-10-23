@@ -13,6 +13,19 @@
 
 ![Iopressources-ezgif com-speed (2) (2)](https://github.com/user-attachments/assets/9c7feb55-ee75-45e1-b894-2cd392925a2c)
 
+🗡️ Gestion des Sorts Spéciaux Iop - Charge, Étendard, Bond avec Talents
+Vue d'ensemble
+Le tracker Iop gère intelligemment les sorts avec des mécaniques de coût variables basées sur les talents et les conditions de jeu. Ces sorts nécessitent une analyse en deux étapes : détection initiale du sort, puis ajustement du coût selon les informations supplémentaires.
+⚡ Charge - Coût basé sur la distance
+🔍 Mécanisme de détection
+📏 Ajustement selon la distance
+Le tracker surveille la ligne suivante pour déterminer la distance parcourue :
+1 case : "Se rapproche de 1 case" → 2 PA
+2 cases : "Se rapproche de 2 cases" → 3 PA
+Distance par défaut : 1 PA (si aucune info de distance)
+🎯 Logique d'implémentation
+
+
 
 ### 🏹 Tracker Crâ
 - **Suivi des ressources** : PA, PM, PW en temps réel
@@ -65,6 +78,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
