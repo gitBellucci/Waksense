@@ -41,27 +41,6 @@
    ```
 3. Lancez `src/main.py`
 
-## 📁 Structure du Projet
-
-```
-Waksense/
-├── src/                    # Code source
-│   ├── main.py            # Application principale
-│   └── classes/           # Trackers par classe
-│       ├── iop/          # Tracker Iop
-│       │   ├── tracker.py
-│       │   └── *.png     # Icônes des sorts
-│       └── cra/          # Tracker Crâ
-│           ├── tracker.py
-│           └── *.png     # Icônes des sorts
-├── assets/                # Ressources
-│   ├── images/           # Images générales
-│   │   └── breeds/      # Icônes des classes
-│   └── Waksense.ico     # Icône de l'application
-└── releases/             # Exécutables compilés
-    └── Waksense.exe     # Version standalone
-```
-
 ## 🎮 Utilisation
 
 1. **Lancement** : Ouvrez `Waksense.exe`
@@ -122,3 +101,4 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 - **Ankama Games** pour le jeu Wakfu
 - **Communauté Wakfu** pour les retours et suggestions
+
