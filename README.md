@@ -68,13 +68,46 @@ if self.last_charge_cast and "[Information (combat)]" in line:
 
 ![2025-10-2318-49-07-ezgif com-speed (1)](https://github.com/user-attachments/assets/3cdce712-cff2-4a08-bcf7-8fc8b8424811)
 
+# 🏹 Guide du Tracker Crâ - Système de Gestion des Ressources
 
-### 🏹 Tracker Crâ
-- **Suivi des ressources** : PA, PM, PW en temps réel
-- **Compteurs de buffs** : Concentration, Affûtage, Précision
-- **Timeline des sorts** : Historique des sorts lancés avec coûts
-- **Logique de précision** : Gestion du talent "Esprit affûté" (limite à 200)
-- **Détection de combat** : Affichage automatique en combat
+## 📋 Vue d'ensemble
+
+Le tracker Crâ est un **overlay transparent** qui surveille en temps réel les ressources de la classe Crâ dans Wakfu. Il suit l'**Affûtage**, la **Précision**, les **Pointes affûtées**, les **Balises affûtées** et le buff **Tir précis**.
+
+![2025-10-2320-47-03-ezgif com-crop (1)](https://github.com/user-attachments/assets/ef3ca2ac-5f00-4dd5-a13d-b97f4f444a35)
+
+## 🔍 Système de Détection
+
+#### 📊 Passif "Esprit Affûté"
+```python
+# Détection automatique du passif qui limite la Précision à 200
+if "Valeur maximale de Précision atteinte !" in line and self.precision > 200:
+    if not self._was_recent_300_gain():
+        # Talent détecté - limite à 200
+        self.precision = 200
+        self.precision_bar.setMaxValue(200)
+        self.has_esprit_affute = True
+```
+
+**Logique de détection :**
+- ✅ **Détecte** : Message "Valeur maximale de Précision atteinte !" + Précision > 200
+- ✅ **Exclut** : Les gains normaux de +300 Précision
+- ✅ **Adapte** : La barre de Précision passe automatiquement de 300 à 200 max
+
+### Détection des Tours
+
+#### 🔄 Système de Visibilité Basé sur les Tours
+```python
+# Détection du tour du Crâ
+if is_cra_spell and caster_name == self.tracked_player_name:
+    self.is_cra_turn = True
+    self.overlay_visible = True
+
+# Fin de tour détectée
+if "secondes reportées pour le tour suivant" in line:
+    if turn_owner == self.tracked_player_name:
+        self.overlay_visible = False
+```
 
 ## Utilisation
 
@@ -102,6 +135,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
