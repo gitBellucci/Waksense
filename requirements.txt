@@ -1,0 +1,7 @@
+# Dépendances principales pour Waksense
+PyQt6>=6.4.0
+pywin32>=306
+psutil>=5.9.0
+
+# Dépendances de développement (optionnelles)
+pyinstaller>=5.0.0
