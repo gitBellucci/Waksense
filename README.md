@@ -26,6 +26,8 @@
 3. Sélectionnez le dossier de logs Wakfu lors du premier lancement
 4. L'application détectera automatiquement vos personnages en combat
 
+![2025-10-2318-18-16-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/17a0bf2c-608e-45e3-9be6-cfd7a6e22468)
+
 ### Version Source
 1. Clonez le dépôt
 2. Installez les dépendances :
@@ -60,5 +62,6 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
