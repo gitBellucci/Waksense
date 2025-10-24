@@ -2,6 +2,15 @@
 
 **Waksense** est une application de suivi de ressources pour les classes Iop et Crâ dans le jeu Wakfu. L'application surveille les logs de combat en temps réel et affiche des overlays informatifs pour optimiser votre gameplay.
 
+## 📞 Contact
+
+<div align="center">
+
+[![Twitter](https://img.shields.io/badge/Twitter-@_samykyt-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_samykyt)
+[![Discord](https://img.shields.io/badge/Discord-Bellucci%231845-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/users/Bellucci#1845)
+
+</div>
+
 ## 🚀 Installation
 
 ### Version Standalone (Recommandée)
@@ -135,6 +144,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
