@@ -6,8 +6,12 @@
 
 <div align="center">
 
-[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_samykyt)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/users/Bellucci#1845)
+| Plateforme | Lien |
+|------------|------|
+| 🐦 Twitter | [@_samykyt](https://twitter.com/_samykyt) |
+| 💬 Discord | [Bellucci#1845](https://discord.com/users/Bellucci#1845) |
+
+</div>
 
 </div>
 
@@ -148,6 +152,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
