@@ -6,8 +6,8 @@
 
 <div align="center">
 
-[![Twitter](https://img.shields.io/badge/Twitter-@_samykyt-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/_samykyt)
 [![Discord](https://img.shields.io/badge/Discord-Bellucci%231845-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/users/Bellucci#1845)
+
 
 </div>
 
@@ -154,6 +154,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
