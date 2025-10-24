@@ -6,10 +6,10 @@
 
 <div align="center">
 
-| Plateforme | Lien |
-|------------|------|
-| 🐦 Twitter | [@_samykyt](https://twitter.com/_samykyt) |
-| 💬 Discord | [Bellucci#1845](https://discord.com/users/Bellucci#1845) |
+[🐦 Twitter - @_samykyt](https://twitter.com/_samykyt)
+[💬 Discord - Bellucci#1845](https://discord.com/users/Bellucci#1845)
+
+</div>
 
 </div>
 
@@ -152,6 +152,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
