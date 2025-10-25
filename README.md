@@ -37,7 +37,7 @@
    ```bash
    pip install PyQt6 pywin32 psutil
    ```
-3. Lancez `src/main.py`
+3. Lancez `wakfu_class_launcher.py`
 
 
 ## Fonctionnalités
@@ -154,6 +154,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
