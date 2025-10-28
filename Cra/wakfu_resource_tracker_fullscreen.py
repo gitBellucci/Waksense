@@ -12,20 +12,62 @@ import re
 import math
 import json
 from pathlib import Path
+import platform
+
+# Ajouter le dossier parent au path pour importer log_deduplicator
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from log_deduplicator import LogDeduplicator
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QHBoxLayout, QLabel, QProgressBar, QFrame, QMenu)
+                            QHBoxLayout, QLabel, QProgressBar, QFrame, QMenu, QGraphicsOpacityEffect)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QPoint, QRect
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QLinearGradient, QBrush, QPixmap, QPen, QAction
 
+# Windows-specific imports for window detection
+try:
+    import win32gui
+    import win32process
+    WINDOWS_DETECTION_AVAILABLE = True
+except ImportError:
+    WINDOWS_DETECTION_AVAILABLE = False
+    print("DEBUG: win32gui not available, window detection disabled")
+
 class LogMonitorThread(QThread):
-    """Thread for monitoring log file"""
+    """Thread for monitoring log file with deduplication"""
     log_updated = pyqtSignal(str)
     
-    def __init__(self, log_file_path):
+    def __init__(self, log_file_path, enable_deduplication=True):
         super().__init__()
         self.log_file = Path(log_file_path)
         self.monitoring = True
         self.last_position = 0
+        
+        # Système de déduplication
+        self.enable_deduplication = enable_deduplication
+        if enable_deduplication:
+            self.deduplicator = LogDeduplicator(duplicate_window_ms=100)  # 100ms de fenêtre
+            self.deduplicator.set_debug_mode(True)  # Activer le debug par défaut
+            print("DEBUG: Déduplication activée pour le tracker Cra avec debug")
+        else:
+            self.deduplicator = None
+            print("DEBUG: Déduplication désactivée pour le tracker Cra")
+        
+        # Initialize position to end of file to ignore existing content
+        self.initialize_position_to_end()
+    
+    def initialize_position_to_end(self):
+        """Set the file position to the end to ignore existing content"""
+        try:
+            if self.log_file.exists():
+                with open(self.log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    f.seek(0, 2)  # Seek to end of file
+                    self.last_position = f.tell()
+                print(f"DEBUG: Log monitor initialized at position {self.last_position} (end of file)")
+            else:
+                print("DEBUG: Log file doesn't exist yet, will start from beginning when created")
+        except Exception as e:
+            print(f"DEBUG: Error initializing log position: {e}")
+            self.last_position = 0
         
     def run(self):
         """Monitor log file for changes"""
@@ -44,6 +86,12 @@ class LogMonitorThread(QThread):
                             for line in new_lines:
                                 line = line.strip()
                                 if line:
+                                    # Vérifier la déduplication si activée
+                                    if self.enable_deduplication and self.deduplicator:
+                                        if not self.deduplicator.should_process_line(line):
+                                            continue  # Ignorer les doublons
+                                    
+                                    # Traiter la ligne normalement
                                     self.log_updated.emit(line)
                             
                             consecutive_errors = 0
@@ -67,6 +115,17 @@ class LogMonitorThread(QThread):
     def stop_monitoring(self):
         """Stop monitoring"""
         self.monitoring = False
+    
+    def set_deduplication_debug(self, enabled):
+        """Active le debug de déduplication"""
+        if self.deduplicator:
+            self.deduplicator.set_debug_mode(enabled)
+    
+    def get_deduplication_stats(self):
+        """Retourne les stats de déduplication"""
+        if self.deduplicator:
+            return self.deduplicator.get_stats()
+        return None
 
 class OutlinedLabel(QLabel):
     """QLabel with outlined text (white text with black border)"""
@@ -234,6 +293,9 @@ class DraggableIcon(QWidget):
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton and not self.is_locked:
             new_pos = event.globalPosition().toPoint() - self.drag_position
             self.move(new_pos)
+            # Auto-save position when dragging (if parent_overlay exists and has auto_save_positions method)
+            if self.parent_overlay and hasattr(self.parent_overlay, 'auto_save_positions'):
+                self.parent_overlay.auto_save_positions()
             event.accept()
     
     def mouseReleaseEvent(self, event):
@@ -407,7 +469,7 @@ class MinimalProgressBar(QProgressBar):
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                         stop:0 #ffd700, stop:0.5 #ffed4e, stop:1 #ffff00);
                     border-radius: 10px;
-                    margin: 1px;
+                    margin: 0px;
                 }
             """
         else:  # blue
@@ -426,7 +488,7 @@ class MinimalProgressBar(QProgressBar):
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                         stop:0 #4a9eff, stop:0.5 #6bb6ff, stop:1 #2196f3);
                     border-radius: 10px;
-                    margin: 1px;
+                    margin: 0px;
                 }
             """
     
@@ -450,8 +512,8 @@ class MinimalProgressBar(QProgressBar):
                     QProgressBar::chunk {{
                         background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                             stop:0 #ffd700, stop:0.5 #ffed4e, stop:1 #ffff00);
-                        border-radius: 9px;
-                        margin: 1px;
+                        border-radius: 10px;
+                        margin: 0px;
                     }}
                 """
             else:  # blue
@@ -471,11 +533,37 @@ class MinimalProgressBar(QProgressBar):
                     QProgressBar::chunk {{
                         background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                             stop:0 #00a8ff, stop:0.5 #4fc3f7, stop:1 #00bcd4);
-                        border-radius: 9px;
-                        margin: 1px;
+                        border-radius: 10px;
+                        margin: 0px;
                     }}
                 """
             self.setStyleSheet(glow_style)
+        else:
+            self.setStyleSheet(self.get_minimal_style())
+    
+    def set_consumption_style(self, active=False):
+        """Set consumption style for precision bar with red/orange gradient"""
+        if active and self.color_scheme == "blue":
+            # Red/orange gradient with "brulure" effect showing consumption
+            consumption_style = f"""
+                QProgressBar {{
+                    border: 2px solid #333333;
+                    background-color: rgba(0, 0, 0, 0.3);
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 16px;
+                    font-family: 'Segoe UI', 'Roboto', 'Open Sans', sans-serif;
+                    color: #ffffff;
+                    border-radius: 12px;
+                }}
+                QProgressBar::chunk {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #ff4500, stop:0.3 #ff6347, stop:0.7 #ff4500, stop:1 #ff0000);
+                    border-radius: 10px;
+                    margin: 0px;
+                }}
+            """
+            self.setStyleSheet(consumption_style)
         else:
             self.setStyleSheet(self.get_minimal_style())
 
@@ -510,7 +598,7 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
             "Flèche chercheuse", "Flèche de recul", "Flèche tempête", 
             "Flèche harcelante", "Flèche statique", "Balise de destruction", 
             "Balise d'alignement", "Balise de contact", "Tir précis", "Débalisage", "Eclaireur",
-            "Flèche lumineuse", "Pluie de flèches", "Roulade"
+            "Flèche lumineuse", "Pluie de flèches", "Roulade", "Œil de taupe"
         ]
         
         # Combat detection
@@ -535,26 +623,28 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         self.current_affutage = 0
         self.current_precision = 0
         
+        # Fade out animation for icons
+        self.pointe_fade_alpha = 255  # 0-255, start fully visible
+        self.balise_fade_alpha = 255
+        self.fade_speed = 15  # How fast the fade is
+        
         # Queue system for Balise and Pointe icons
-        # Position 1: Right edge of Précision bar (281px) - for Balise (priority)
-        # Position 2: Left of position 1 (281 - 40 = 241px) - for Pointe (secondary)
-        # But we need to ensure both fit in container (300px max)
-        # So: Position 1 = 260px (max), Position 2 = 220px
+        # Icons are 40x40 pixels each
+        # Container is 320px wide
+        # To fit both icons without overlap when both are active:
+        # - Position 1 (right) : 280px (320 - 40)
+        # - Position 2 (left)  : 240px (280 - 40)
+        # Gap between icons when both active: exactly 0px (collées)
         self.queue_positions = {
-            'balise': {'x': 220, 'y': 5},  # Position 2 (left, secondary)
-            'pointe': {'x': 260, 'y': 5}   # Position 1 (right, priority)
+            'position_1': {'x': 280, 'y': 5},  # Rightmost position (for Balise when both active)
+            'position_2': {'x': 240, 'y': 5}   # Left position (for Pointe when both active)
         }
         self.current_positions = {
-            'balise': {'x': 220, 'y': 5},
-            'pointe': {'x': 260, 'y': 5}
+            'balise': {'x': 280, 'y': 5},  # Start at position 1 (rightmost)
+            'pointe': {'x': 240, 'y': 5}   # Start at position 2 (left)
         }
         self.animation_speed = 0.2  # Speed of slide animation
         
-        # Bounce animation for Pointe affûtée
-        self.pointe_bounce_offset = 0
-        self.pointe_bounce_direction = 1
-        self.pointe_bounce_speed = 0.3
-        self.pointe_bounce_amplitude = 3  # Max bounce height in pixels
         
         # Drag functionality
         self.drag_position = QPoint()
@@ -584,6 +674,48 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         
         # Start monitoring
         self.start_monitoring()
+    
+    def is_wakfu_window_active(self):
+        """Check if Wakfu game window is currently active"""
+        if not WINDOWS_DETECTION_AVAILABLE or platform.system() != "Windows":
+            # On non-Windows or if win32gui is not available, always return True
+            return True
+        
+        try:
+            # Get the handle of the foreground (active) window
+            foreground_window = win32gui.GetForegroundWindow()
+            
+            if foreground_window == 0:
+                return False
+            
+            # Get the window text (title)
+            window_text = win32gui.GetWindowText(foreground_window)
+            
+            # Check if it's a Wakfu window by checking for the specific format: "CharacterName - WAKFU"
+            # This is the standard format for Wakfu game windows
+            if " - WAKFU" in window_text or " - Wakfu" in window_text:
+                return True
+            
+            # Also check by process name
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(foreground_window)
+                import psutil
+                try:
+                    process = psutil.Process(pid)
+                    process_name = process.name().lower()
+                    if "wakfu" in process_name or "ankama" in process_name:
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            except Exception:
+                pass
+            
+            return False
+        except Exception as e:
+            if self.debug_mode:
+                print(f"DEBUG: Error checking window focus: {e}")
+            # On error, return True to keep overlay visible
+            return True
     
     def setup_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -644,8 +776,8 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
                 
                 # Don't load resource container position here - it's handled by load_container_position()
                 
-                # Load icon positions only if icons are visible (in combat)
-                if 'precis_icon' in positions and self.precis_icon.isVisible():
+                # Load icon positions regardless of visibility
+                if 'precis_icon' in positions:
                     x, y = positions['precis_icon']['x'], positions['precis_icon']['y']
                     self.precis_icon.move(x, y)
                     print(f"DEBUG: Moved precis_icon to ({x}, {y})")
@@ -698,8 +830,27 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         self.auto_save_timer.start(500)
     
     def show_resource_context_menu(self, position):
-        """Show context menu for resource bars"""
+        """Show context menu for resource bars with deduplication options"""
         menu = QMenu(self)
+        
+        # Options de déduplication
+        dedup_debug_action = QAction("🔧 Toggle Deduplication Debug", self)
+        dedup_debug_action.setCheckable(True)
+        dedup_debug_action.setChecked(self.debug_mode)
+        dedup_debug_action.triggered.connect(self.toggle_deduplication_debug)
+        menu.addAction(dedup_debug_action)
+        
+        # Stats de déduplication
+        stats_action = QAction("📊 Deduplication Stats", self)
+        stats_action.triggered.connect(self.show_deduplication_stats)
+        menu.addAction(stats_action)
+        
+        # Reset stats
+        reset_stats_action = QAction("🔄 Reset Deduplication Stats", self)
+        reset_stats_action.triggered.connect(self.reset_deduplication_stats)
+        menu.addAction(reset_stats_action)
+        
+        menu.addSeparator()
         
         # Quit options
         quit_action = QAction("🚪 Quit Application", self)
@@ -734,6 +885,36 @@ En combat: {self.in_combat}
 Fichier log: {self.log_file}
         """
         print(debug_text)
+    
+    def toggle_deduplication_debug(self):
+        """Toggle deduplication debug mode"""
+        if hasattr(self, 'monitor_thread'):
+            self.monitor_thread.set_deduplication_debug(not self.debug_mode)
+            self.debug_mode = not self.debug_mode
+            print(f"DEBUG: Mode debug déduplication {'activé' if self.debug_mode else 'désactivé'}")
+    
+    def show_deduplication_stats(self):
+        """Show deduplication statistics"""
+        if hasattr(self, 'monitor_thread'):
+            stats = self.monitor_thread.get_deduplication_stats()
+            if stats:
+                print(f"""
+DEBUG: Statistiques de déduplication Cra
+========================================
+Messages totaux: {stats['total_messages']}
+Doublons détectés: {stats['duplicates_detected']}
+Messages traités: {stats['messages_processed']}
+Taux de doublons: {stats['duplicate_rate']:.1f}%
+Fenêtre temporelle: {stats['duplicate_window_ms']}ms
+                """)
+            else:
+                print("DEBUG: Aucune statistique de déduplication disponible")
+    
+    def reset_deduplication_stats(self):
+        """Reset deduplication statistics"""
+        if hasattr(self, 'monitor_thread'):
+            self.monitor_thread.deduplicator.reset_stats()
+            print("DEBUG: Statistiques de déduplication remises à zéro")
     
     def setup_fullscreen_overlay(self):
         """Setup full-screen transparent overlay"""
@@ -849,18 +1030,26 @@ Fichier log: {self.log_file}
             # Bar starts at ~31px (icon 28 + spacing 3), bar is 250px wide
             # So right edge is at 31 + 250 = 281, place icon just to the right
             # Bar height is 24px, icon is 40px, so center vertically: (24-40)/2 = -8
-            # Container is 300px wide, so position at 260px to fit (260 + 40 = 300)
-            # Adjust Y position to be within container bounds (container height is 70px)
-            self.balise_container_icon.move(260, 5)  # Within container bounds, centered vertically
-            self.balise_count_label.move(260, 5)
+            # Container is 320px wide, icons are 40px each
+            # When active together: Balise at 280px, Pointe at 240px (collées without overlap)
+            self.balise_container_icon.move(280, 5)  # Position 1 (rightmost when active)
+            self.balise_count_label.move(280, 5)
             # Raise both widgets to ensure they appear on top of progress bar
             self.balise_container_icon.raise_()
             self.balise_count_label.raise_()
+            
+            # Create opacity effects for fade animation
+            self.balise_opacity_effect = QGraphicsOpacityEffect()
+            self.balise_container_icon.setGraphicsEffect(self.balise_opacity_effect)
+            self.balise_count_opacity_effect = QGraphicsOpacityEffect()
+            self.balise_count_label.setGraphicsEffect(self.balise_count_opacity_effect)
             
             self.balise_container_icon.hide()
         else:
             self.balise_container_icon = None
             self.balise_count_label = None
+            self.balise_opacity_effect = None
+            self.balise_count_opacity_effect = None
         
         # Create Pointe affûtée icon as child of resource_container (for queue system)
         pointe_icon_path = self.icon_path / "Pointe.png"
@@ -879,16 +1068,25 @@ Fichier log: {self.log_file}
             
             # Position will be managed by queue system
             # Adjust Y position to be within container bounds (container height is 70px)
-            self.pointe_container_icon.move(220, 5)  # Initial position (left of Balise)
-            self.pointe_count_label.move(220, 5)
+            # When active with Balise: at 240px (left), when alone: at 280px (right)
+            self.pointe_container_icon.move(240, 5)  # Position 2 (left when both active)
+            self.pointe_count_label.move(240, 5)
             # Raise both widgets to ensure they appear on top of progress bar
             self.pointe_container_icon.raise_()
             self.pointe_count_label.raise_()
+            
+            # Create opacity effects for fade animation
+            self.pointe_opacity_effect = QGraphicsOpacityEffect()
+            self.pointe_container_icon.setGraphicsEffect(self.pointe_opacity_effect)
+            self.pointe_count_opacity_effect = QGraphicsOpacityEffect()
+            self.pointe_count_label.setGraphicsEffect(self.pointe_count_opacity_effect)
             
             self.pointe_container_icon.hide()
         else:
             self.pointe_container_icon = None
             self.pointe_count_label = None
+            self.pointe_opacity_effect = None
+            self.pointe_count_opacity_effect = None
         
         # Précision section
         precision_layout = QHBoxLayout()
@@ -971,24 +1169,6 @@ Fichier log: {self.log_file}
         self.animation_timer.timeout.connect(self.update_animations)
         self.animation_timer.start(16)  # ~60 FPS
     
-    def update_pointe_bounce_animation(self):
-        """Update bounce animation for Pointe affûtée icon"""
-        if self.pointe_affutee_stacks > 0:
-            # Update bounce offset
-            self.pointe_bounce_offset += self.pointe_bounce_direction * self.pointe_bounce_speed
-            
-            # Reverse direction when reaching amplitude limits
-            if self.pointe_bounce_offset >= self.pointe_bounce_amplitude:
-                self.pointe_bounce_offset = self.pointe_bounce_amplitude
-                self.pointe_bounce_direction = -1
-            elif self.pointe_bounce_offset <= -self.pointe_bounce_amplitude:
-                self.pointe_bounce_offset = -self.pointe_bounce_amplitude
-                self.pointe_bounce_direction = 1
-        else:
-            # Reset bounce when no stacks
-            self.pointe_bounce_offset = 0
-            self.pointe_bounce_direction = 1
-
     def update_queue_animation(self):
         """Update queue system animation for Balise and Pointe icons"""
         if not (self.balise_container_icon and self.pointe_container_icon):
@@ -1000,21 +1180,22 @@ Fichier log: {self.log_file}
         
         # Calculate target positions - Balise has priority over Pointe
         if pointe_active and balise_active:
-            # Both active: Balise at position 1 (260px), Pointe at position 2 (220px)
-            target_balise_x = self.queue_positions['pointe']['x']  # 260px (position 1)
-            target_pointe_x = self.queue_positions['balise']['x']  # 220px (position 2)
+            # Both active: Balise at position 1 (280px), Pointe at position 2 (240px)
+            # They will be collées (touching) without overlap
+            target_balise_x = self.queue_positions['position_1']['x']  # 280px (rightmost)
+            target_pointe_x = self.queue_positions['position_2']['x']  # 240px (left of Balise)
         elif balise_active:
             # Only Balise active: takes position 1
-            target_balise_x = self.queue_positions['pointe']['x']  # 260px
-            target_pointe_x = self.queue_positions['balise']['x']  # 220px (hidden)
+            target_balise_x = self.queue_positions['position_1']['x']  # 280px
+            target_pointe_x = self.queue_positions['position_2']['x'] - 100  # Hide Pointe far left
         elif pointe_active:
             # Only Pointe active: takes position 1 (moves to right)
-            target_balise_x = self.queue_positions['balise']['x']  # 220px (hidden)
-            target_pointe_x = self.queue_positions['pointe']['x']  # 260px (moves to position 1)
+            target_balise_x = self.queue_positions['position_2']['x'] - 100  # Hide Balise far left
+            target_pointe_x = self.queue_positions['position_1']['x']  # 280px (moves to position 1)
         else:
             # Neither active: reset to default positions
-            target_balise_x = self.queue_positions['balise']['x']  # 220px
-            target_pointe_x = self.queue_positions['pointe']['x']  # 260px
+            target_balise_x = self.queue_positions['position_2']['x']  # 240px
+            target_pointe_x = self.queue_positions['position_1']['x']  # 280px
         
         # Smooth animation to target positions
         if pointe_active:
@@ -1022,10 +1203,10 @@ Fichier log: {self.log_file}
             self.current_positions['pointe']['x'] = self.smooth_value(
                 self.current_positions['pointe']['x'], target_pointe_x, self.animation_speed
             )
-            # Apply bounce animation to Y position
-            bounce_y = int(self.current_positions['pointe']['y'] + self.pointe_bounce_offset)
-            self.pointe_container_icon.move(int(self.current_positions['pointe']['x']), bounce_y)
-            self.pointe_count_label.move(int(self.current_positions['pointe']['x']), bounce_y)
+            # Move icon to target position (no bounce)
+            target_y = int(self.current_positions['pointe']['y'])
+            self.pointe_container_icon.move(int(self.current_positions['pointe']['x']), target_y)
+            self.pointe_count_label.move(int(self.current_positions['pointe']['x']), target_y)
         
         if balise_active:
             # Animate Balise to target position
@@ -1071,50 +1252,92 @@ Fichier log: {self.log_file}
         self.affutage_bar.setDecimalValue(self.current_affutage)
         self.precision_bar.setDecimalValue(self.current_precision)
         
-        # Update bounce animation for Pointe affûtée
-        self.update_pointe_bounce_animation()
-        
         # Update queue animation first
         self.update_queue_animation()
         
-        # Update Pointe affûtée icon (static, positioned in queue)
+        # Update Pointe affûtée icon with fade out animation
         if self.pointe_container_icon and self.pointe_count_label:
             if self.pointe_affutee_stacks > 0:
+                # Stacks active - fade in to full opacity
+                if self.pointe_fade_alpha < 255:
+                    self.pointe_fade_alpha = min(255, self.pointe_fade_alpha + self.fade_speed)
                 self.pointe_container_icon.show()
                 self.pointe_container_icon.raise_()  # Ensure icon is on top
                 self.pointe_count_label.setText(f"{self.pointe_affutee_stacks}")
                 self.pointe_count_label.show()
                 self.pointe_count_label.raise_()  # Ensure label is on top
+                # Apply opacity
+                if self.pointe_opacity_effect:
+                    self.pointe_opacity_effect.setOpacity(self.pointe_fade_alpha / 255)
+                if self.pointe_count_opacity_effect:
+                    self.pointe_count_opacity_effect.setOpacity(self.pointe_fade_alpha / 255)
             else:
-                self.pointe_container_icon.hide()
-                self.pointe_count_label.hide()
+                # No stacks - fade out
+                if self.pointe_fade_alpha > 0:
+                    self.pointe_fade_alpha = max(0, self.pointe_fade_alpha - self.fade_speed)
+                    # Apply opacity
+                    if self.pointe_opacity_effect:
+                        self.pointe_opacity_effect.setOpacity(self.pointe_fade_alpha / 255)
+                    if self.pointe_count_opacity_effect:
+                        self.pointe_count_opacity_effect.setOpacity(self.pointe_fade_alpha / 255)
+                    if self.pointe_container_icon.isVisible():
+                        self.pointe_container_icon.show()
+                        self.pointe_container_icon.raise_()
+                        self.pointe_count_label.show()
+                        self.pointe_count_label.raise_()
+                else:
+                    # Fully faded out - hide completely
+                    self.pointe_container_icon.hide()
+                    self.pointe_count_label.hide()
         
-        # Update Balise affûtée icon (static, positioned in queue)
+        # Update Balise affûtée icon with fade out animation
         if self.balise_container_icon and self.balise_count_label:
             if self.balise_affutee_stacks > 0:
+                # Stacks active - fade in to full opacity
+                if self.balise_fade_alpha < 255:
+                    self.balise_fade_alpha = min(255, self.balise_fade_alpha + self.fade_speed)
                 self.balise_container_icon.show()
                 self.balise_container_icon.raise_()  # Ensure icon is on top
                 self.balise_count_label.setText(f"{self.balise_affutee_stacks}")
                 self.balise_count_label.show()
                 self.balise_count_label.raise_()  # Ensure label is on top
+                # Apply opacity
+                if self.balise_opacity_effect:
+                    self.balise_opacity_effect.setOpacity(self.balise_fade_alpha / 255)
+                if self.balise_count_opacity_effect:
+                    self.balise_count_opacity_effect.setOpacity(self.balise_fade_alpha / 255)
             else:
-                self.balise_container_icon.hide()
-                self.balise_count_label.hide()
+                # No stacks - fade out
+                if self.balise_fade_alpha > 0:
+                    self.balise_fade_alpha = max(0, self.balise_fade_alpha - self.fade_speed)
+                    # Apply opacity
+                    if self.balise_opacity_effect:
+                        self.balise_opacity_effect.setOpacity(self.balise_fade_alpha / 255)
+                    if self.balise_count_opacity_effect:
+                        self.balise_count_opacity_effect.setOpacity(self.balise_fade_alpha / 255)
+                    if self.balise_container_icon.isVisible():
+                        self.balise_container_icon.show()
+                        self.balise_container_icon.raise_()
+                        self.balise_count_label.show()
+                        self.balise_count_label.raise_()
+                else:
+                    # Fully faded out - hide completely
+                    self.balise_container_icon.hide()
+                    self.balise_count_label.hide()
         
         # Update bounce animations for draggable icons (Tir précis only)
         self.precis_icon.update_bounce_animation()
         
-        # Add glow effect to precision bar when tir precis is active
+        # Apply consumption style to precision bar when tir precis is active
         if self.tir_precis_active:
-            pulse_intensity = 0.6 + 0.4 * abs(math.sin(self.animation_frame * 0.2))
-            self.precision_bar.set_glow_effect(True, pulse_intensity)
+            self.precision_bar.set_consumption_style(True)
             # Show Tir précis icon with pulsing border
             self.precis_icon.show_icon()
             # Create pulsing border effect on the icon itself
             pulse_alpha = int(128 + 127 * abs(math.sin(self.animation_frame * 0.3)))
             self.precis_icon.set_icon_border(True, pulse_alpha)
         else:
-            self.precision_bar.set_glow_effect(False)
+            self.precision_bar.set_consumption_style(False)
             # Hide Tir précis icon and remove border
             self.precis_icon.hide_icon()
             self.precis_icon.set_icon_border(False)
@@ -1355,8 +1578,6 @@ Fichier log: {self.log_file}
                 spell_consumption = 45
             elif "Flèche statique" in line:
                 spell_consumption = 90
-            else:
-                spell_consumption = 30
             
             if spell_consumption > 0:
                 self.precision = max(self.precision - spell_consumption, 0)

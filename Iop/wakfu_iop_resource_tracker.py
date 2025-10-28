@@ -12,21 +12,46 @@ import re
 import math
 import json
 from pathlib import Path
+import platform
+
+# Ajouter le dossier parent au path pour importer log_deduplicator
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from log_deduplicator import LogDeduplicator
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QProgressBar, QFrame, QMenu)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QPoint, QRect
-from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QLinearGradient, QBrush, QPixmap, QPen, QAction
+from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QLinearGradient, QBrush, QPixmap, QPen, QAction, QPainterPath
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
+# Windows-specific imports for window detection
+try:
+    import win32gui
+    import win32process
+    WINDOWS_DETECTION_AVAILABLE = True
+except ImportError:
+    WINDOWS_DETECTION_AVAILABLE = False
+    print("DEBUG: win32gui not available, window detection disabled")
+
 class LogMonitorThread(QThread):
-    """Thread for monitoring log file"""
+    """Thread for monitoring log file with deduplication"""
     log_updated = pyqtSignal(str)
     
-    def __init__(self, log_file_path):
+    def __init__(self, log_file_path, enable_deduplication=True):
         super().__init__()
         self.log_file = Path(log_file_path)
         self.monitoring = True
         self.last_position = 0
+        
+        # Système de déduplication
+        self.enable_deduplication = enable_deduplication
+        if enable_deduplication:
+            self.deduplicator = LogDeduplicator(duplicate_window_ms=100)  # 100ms de fenêtre
+            self.deduplicator.set_debug_mode(True)  # Activer le debug par défaut
+            print("DEBUG: Déduplication activée pour le tracker Iop avec debug")
+        else:
+            self.deduplicator = None
+            print("DEBUG: Déduplication désactivée pour le tracker Iop")
         
         # Initialize position to end of file to ignore existing content
         self.initialize_position_to_end()
@@ -62,10 +87,17 @@ class LogMonitorThread(QThread):
                             for line in new_lines:
                                 line = line.strip()
                                 if line:
+                                    # Vérifier la déduplication si activée
+                                    if self.enable_deduplication and self.deduplicator:
+                                        if not self.deduplicator.should_process_line(line):
+                                            continue  # Ignorer les doublons
+                                    
                                     # Debug: Log when we emit a line
                                     if "lance le sort" in line:
                                         timestamp = time.strftime("%H:%M:%S")
                                         print(f"DEBUG [{timestamp}]: LogMonitor emitting spell line: {line[:80]}...")
+                                    
+                                    # Traiter la ligne normalement
                                     self.log_updated.emit(line)
                             
                             consecutive_errors = 0
@@ -89,6 +121,17 @@ class LogMonitorThread(QThread):
     def stop_monitoring(self):
         """Stop monitoring"""
         self.monitoring = False
+    
+    def set_deduplication_debug(self, enabled):
+        """Active le debug de déduplication"""
+        if self.deduplicator:
+            self.deduplicator.set_debug_mode(enabled)
+    
+    def get_deduplication_stats(self):
+        """Retourne les stats de déduplication"""
+        if self.deduplicator:
+            return self.deduplicator.get_stats()
+        return None
 
 class OutlinedLabel(QLabel):
     """QLabel with outlined text (white text with black border)"""
@@ -701,16 +744,30 @@ class ConcentrationProgressBar(QProgressBar):
             gradient.setColorAt(0.5, QColor(3, 169, 244, int(255 * self.gradient_offset)))   # Electric blue
             gradient.setColorAt(1, QColor(0, 123, 255, int(255 * self.gradient_offset)))     # Bright blue
         
+        # Draw background with rounded corners (like Cra)
+        radius = 10
+        
         # Draw background
-        painter.fillRect(0, 0, self.width(), self.height(), QColor(0, 0, 0, 77))  # Semi-transparent black
+        bg_path = QPainterPath()
+        bg_path.addRoundedRect(0, 0, self.width(), self.height(), radius, radius)
+        painter.fillPath(bg_path, QColor(0, 0, 0, 77))  # Semi-transparent black
         
-        # Draw animated progress bar
+        # Draw animated progress bar with rounded corners
         if bar_width > 0:
-            painter.fillRect(0, 0, bar_width, self.height(), QBrush(gradient))
+            # Create a path for the rounded rectangle
+            progress_path = QPainterPath()
+            if bar_width >= self.width():  # Full bar - all corners rounded
+                progress_path.addRoundedRect(0, 0, bar_width, self.height(), radius, radius)
+            else:
+                # Partial bar - only left corners rounded
+                progress_path.addRoundedRect(0, 0, bar_width, self.height(), radius, radius)
+            painter.fillPath(progress_path, QBrush(gradient))
         
-        # Draw border
+        # Draw border with rounded corners
         painter.setPen(QPen(QColor(51, 51, 51, 255), 2))
-        painter.drawRect(0, 0, self.width()-1, self.height()-1)
+        border_path = QPainterPath()
+        border_path.addRoundedRect(1, 1, self.width()-2, self.height()-2, radius, radius)
+        painter.drawPath(border_path)
         
         # Set font
         font = QFont('Segoe UI', 16, QFont.Weight.Bold)
@@ -858,6 +915,11 @@ class WakfuIopResourceTracker(QMainWindow):
         self.courroux_bounce_min_velocity = 0.3  # Stop bouncing when velocity is very small
         self.courroux_ground_level = 0  # Ground level (normal position)
         
+        # Courroux icon fade animation variables (like Pointe/Balise)
+        self.courroux_fade_alpha = 255  # Current opacity (0-255, start fully visible)
+        self.courroux_fade_speed = 50  # How fast the fade is (2x faster than before)
+        self.courroux_opacity_effect = None
+        
         # Égaré icon animation variables
         self.egare_fade_alpha = 0.0  # Current opacity (0.0 to 1.0)
         self.egare_target_alpha = 0.0  # Target opacity
@@ -878,19 +940,6 @@ class WakfuIopResourceTracker(QMainWindow):
         self.preparation_slide_offset = 0  # Slide-in offset (pixels)
         self.preparation_slide_speed = 2  # Pixels per frame during fade-in (faster)
         self.preparation_slide_max = 14  # Start this many pixels above and slide down
-
-        # Préparation bounce animation variables
-        self.preparation_bounce_offset = 0
-        self.preparation_bounce_velocity = 0  # Current velocity (pixels per frame)
-        self.preparation_bounce_gravity = 2.0  # Gravity acceleration (faster)
-        self.preparation_bounce_damping = 0.6  # Energy loss on bounce (0.6 = loses 40% energy each bounce, faster decay)
-        self.preparation_bounce_min_velocity = 0.5  # Stop bouncing when velocity is very small (higher threshold)
-        self.preparation_bounce_ground_level = 0  # Ground level (normal position)
-        self.preparation_bounce_delay = 0  # Delay before bouncing starts (frames)
-        self.preparation_bounce_delay_max = 15  # Wait 15 frames (0.25 seconds at 60fps) before bouncing (faster)
-        self.preparation_bounce_loop_delay = 0  # Delay between bounce loops (frames)
-        self.preparation_bounce_loop_delay_max = 30  # Wait 30 frames (0.5 seconds) between bounce loops (faster)
-        self.preparation_bounce_loop_active = False  # Whether continuous bouncing is active
 
         # Debug state tracking to prevent spam
         self.last_puissance_bars_state = 0  # Track last puissance bars count
@@ -1022,10 +1071,17 @@ class WakfuIopResourceTracker(QMainWindow):
         self.dragging_concentration = False
         self.dragging_combos = False
         self.dragging_preparation = False
+        self.dragged_combo_index = 0  # Which combo in the group was clicked
         self.combo_group_offset_x = 0  # Offset for combo group from concentration bar
         self.combo_group_offset_y = 0
         self.preparation_offset_x = 0  # Offset for preparation icon from concentration bar
         self.preparation_offset_y = 0
+        
+        # Absolute positions for independent elements (None means they haven't been moved manually)
+        self.preparation_absolute_x = None
+        self.preparation_absolute_y = None
+        self.combo_group_absolute_x = None
+        self.combo_group_absolute_y = None
         
         self.setup_ui()
         self.setup_log_monitoring()
@@ -1094,16 +1150,20 @@ class WakfuIopResourceTracker(QMainWindow):
         self.concentration_bar = ConcentrationProgressBar()
         self.concentration_bar.setParent(main_widget)
         
-        # Courroux icon (positioned absolutely, initially hidden)
+        # Enable right-click context menu for concentration bar
+        self.concentration_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.concentration_bar.customContextMenuRequested.connect(self.show_context_menu)
+        
+        # Courroux icon (positioned absolutely, initially hidden) - 35x35
         self.courroux_icon = QLabel()
-        self.courroux_icon.setFixedSize(28, 28)
+        self.courroux_icon.setFixedSize(35, 35)
         self.courroux_icon.setScaledContents(True)
         self.courroux_icon.setParent(main_widget)
         self.courroux_icon.hide()
         
         if self.courroux_icon_path.exists():
             pixmap = QPixmap(str(self.courroux_icon_path))
-            self.courroux_icon.setPixmap(pixmap.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.courroux_icon.setPixmap(pixmap.scaled(35, 35, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             self.courroux_icon.setStyleSheet("background-color: transparent;")
         else:
             self.courroux_icon.setText("⚡")
@@ -1118,10 +1178,16 @@ class WakfuIopResourceTracker(QMainWindow):
         
         # Courroux counter (positioned absolutely, initially hidden)
         self.courroux_counter = OutlinedLabel()
-        self.courroux_counter.setFixedSize(28, 28)
+        self.courroux_counter.setFixedSize(35, 35)  # Same size as icon (35x35)
         self.courroux_counter.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.courroux_counter.setParent(main_widget)
         self.courroux_counter.hide()
+        
+        # Create opacity effects for fade animation (like Pointe/Balise)
+        self.courroux_opacity_effect = QGraphicsOpacityEffect()
+        self.courroux_icon.setGraphicsEffect(self.courroux_opacity_effect)
+        self.courroux_counter_opacity_effect = QGraphicsOpacityEffect()
+        self.courroux_counter.setGraphicsEffect(self.courroux_counter_opacity_effect)
         
         # Préparation icon (positioned absolutely, initially hidden)
         self.preparation_icon = QLabel()
@@ -1264,29 +1330,31 @@ class WakfuIopResourceTracker(QMainWindow):
                 # Check if combo is completed
                 if self.combo_progress[matching_combo] >= len(self.combo_definitions[matching_combo]["steps"]):
                     self.completed_combos_this_turn.add(matching_combo)
-                    print(f"DEBUG: Combo '{matching_combo}' COMPLETED! (added to completed set)")
+                    print(f"DEBUG: Combo '{matching_combo}' COMPLETED! (can be redone in this turn)")
+                    # Reset the completed combo immediately to allow it to be redone
+                    self.combo_progress[matching_combo] = 0
+                    combo_index = list(self.combo_definitions.keys()).index(matching_combo)
+                    if combo_index < len(self.combo_ui_elements):
+                        self.combo_ui_elements[combo_index].reset()
+                    print(f"DEBUG: Combo '{matching_combo}' reset after completion to allow redoing")
             
-            # Reset ALL other combos that were in progress (except completed ones and matching ones)
+            # Reset ALL other combos that were in progress (except the ones that just progressed)
             for combo_name, combo_data in self.combo_definitions.items():
                 if (combo_name not in matching_combos and 
-                    self.combo_progress[combo_name] > 0 and 
-                    combo_name not in self.completed_combos_this_turn):
+                    self.combo_progress[combo_name] > 0):
                     self.combo_progress[combo_name] = 0
                     combo_index = list(self.combo_definitions.keys()).index(combo_name)
                     if combo_index < len(self.combo_ui_elements):
                         # Trigger full reset with slide-down animation
                         self.combo_ui_elements[combo_index].reset()
                         print(f"DEBUG: Combo '{combo_name}' reset due to '{matching_combos}' progression")
-                elif combo_name in self.completed_combos_this_turn:
-                    print(f"DEBUG: Combo '{combo_name}' protected from reset (already completed this turn)")
         
         # If no combo was in progress and matched, check if this spell starts any combo
         else:
-            # Check if any combo was in progress (if so, reset them, except completed ones)
+            # Check if any combo was in progress (reset them all)
             any_in_progress = False
             for combo_name, combo_data in self.combo_definitions.items():
-                if (self.combo_progress[combo_name] > 0 and 
-                    combo_name not in self.completed_combos_this_turn):
+                if self.combo_progress[combo_name] > 0:
                     any_in_progress = True
                     self.combo_progress[combo_name] = 0
                     combo_index = list(self.combo_definitions.keys()).index(combo_name)
@@ -1294,15 +1362,12 @@ class WakfuIopResourceTracker(QMainWindow):
                         # Trigger full reset with slide-down animation
                         self.combo_ui_elements[combo_index].reset()
                         print(f"DEBUG: Combo '{combo_name}' reset due to non-matching spell '{compact_cost}'")
-                elif combo_name in self.completed_combos_this_turn:
-                    print(f"DEBUG: Combo '{combo_name}' protected from reset (already completed this turn)")
             
-            # Now check if this spell starts any combo (first step, but not completed ones)
+            # Now check if this spell starts any combo (first step)
             for combo_name, combo_data in self.combo_definitions.items():
                 if (len(combo_data["steps"]) > 0 and 
-                    compact_cost == combo_data["steps"][0] and 
-                    combo_name not in self.completed_combos_this_turn):
-                    # Start this combo
+                    compact_cost == combo_data["steps"][0]):
+                    # Start this combo (can start even if it was completed earlier in the turn)
                     self.combo_progress[combo_name] = 1
                     print(f"DEBUG: Combo '{combo_name}' started with spell '{compact_cost}'")
                     
@@ -1312,8 +1377,6 @@ class WakfuIopResourceTracker(QMainWindow):
                         if combo_index < len(self.combo_ui_elements):
                             self.combo_ui_elements[combo_index].update_progress(1)
                     break
-                elif combo_name in self.completed_combos_this_turn:
-                    print(f"DEBUG: Combo '{combo_name}' cannot be started (already completed this turn)")
     
     def reset_all_combos(self):
         """Reset all combo progress"""
@@ -1360,20 +1423,36 @@ class WakfuIopResourceTracker(QMainWindow):
         base_x = self.concentration_bar.x()
         base_y = self.concentration_bar.y()
         
-        # Position concentration icon (left of bar)
+        # Position concentration icon (left of bar) - always follows concentration bar
         self.concentration_icon.move(base_x - 35, base_y - 2)
         
-        # Position courroux icon (right of bar)
-        self.courroux_icon.move(base_x + 255, base_y - 2)
+        # Position courroux icon (right of bar) - always follows concentration bar
+        # Align right edge of icon with right edge of bar, align top with top of bar
+        bar_width = self.concentration_bar.width()  # 250
+        icon_width = 40
+        courroux_x = base_x + bar_width - icon_width  # Right edge of icon = right edge of bar
+        courroux_y = base_y  # Top of icon = top of bar
+        self.courroux_icon.move(courroux_x, courroux_y)
         
         # Position courroux counter (on top of courroux icon)
-        self.courroux_counter.move(base_x + 255, base_y - 2)
+        self.courroux_counter.move(courroux_x, courroux_y)
         
-        # Position préparation icon (right of courroux + offset)
-        self.preparation_icon.move(base_x + 290 + self.preparation_offset_x, base_y - 2 + self.preparation_offset_y)
+        # Position préparation icon (independent from concentration bar if it has been moved)
+        # Only position if it hasn't been manually moved
+        if not hasattr(self, 'preparation_absolute_x') or self.preparation_absolute_x is None:
+            self.preparation_icon.move(base_x + 290 + self.preparation_offset_x, base_y - 2 + self.preparation_offset_y)
+            # Save absolute position
+            self.preparation_absolute_x = self.preparation_icon.x()
+            self.preparation_absolute_y = self.preparation_icon.y()
+        else:
+            # Use saved absolute position
+            self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
         
-        # Position préparation counter (on top of préparation icon)
-        self.preparation_counter.move(base_x + 290 + self.preparation_offset_x, base_y - 2 + self.preparation_offset_y)
+        # Position préparation counter (follows preparation icon)
+        if self.preparation_absolute_x is not None:
+            self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
+        else:
+            self.preparation_counter.move(base_x + 290 + self.preparation_offset_x, base_y - 2 + self.preparation_offset_y)
         
         # Position Puissance combo bars (on top of concentration bar)
         for i, bar in enumerate(self.puissance_bars):
@@ -1401,12 +1480,21 @@ class WakfuIopResourceTracker(QMainWindow):
             cost_y = timeline_icon_y + icon_h - 2
             self.timeline_cost_labels[i].move(cost_x, cost_y)
         
-        # Position combo tracking columns with offset
-        combo_y = base_y + 80 + self.combo_group_offset_y  # Below timeline + offset
+        # Position combo tracking columns (use absolute position if available, otherwise relative)
         combo_spacing = 45  # Space between combo columns
-        for i, combo_widget in enumerate(self.combo_ui_elements):
-            combo_x = base_x + (i * combo_spacing) + self.combo_group_offset_x
-            combo_widget.move(combo_x, combo_y)
+        if self.combo_group_absolute_x is not None and self.combo_group_absolute_y is not None:
+            # Use absolute positions
+            for i, combo_widget in enumerate(self.combo_ui_elements):
+                combo_widget.move(
+                    self.combo_group_absolute_x + (i * combo_spacing),
+                    self.combo_group_absolute_y
+                )
+        else:
+            # Use relative positions
+            combo_y = base_y + 80 + self.combo_group_offset_y  # Below timeline + offset
+            for i, combo_widget in enumerate(self.combo_ui_elements):
+                combo_x = base_x + (i * combo_spacing) + self.combo_group_offset_x
+                combo_widget.move(combo_x, combo_y)
     
     def setup_log_monitoring(self):
         """Setup log file monitoring"""
@@ -1419,6 +1507,47 @@ class WakfuIopResourceTracker(QMainWindow):
         self.animation_timer = QTimer()
         self.animation_timer.timeout.connect(self.update_animations)
         self.animation_timer.start(50)  # 20 FPS (back to original)
+    
+    def is_wakfu_window_active(self):
+        """Check if Wakfu game window is currently active"""
+        if not WINDOWS_DETECTION_AVAILABLE or platform.system() != "Windows":
+            # On non-Windows or if win32gui is not available, always return True
+            return True
+        
+        try:
+            # Get the handle of the foreground (active) window
+            foreground_window = win32gui.GetForegroundWindow()
+            
+            if foreground_window == 0:
+                return False
+            
+            # Get the window text (title)
+            window_text = win32gui.GetWindowText(foreground_window)
+            
+            # Check if it's a Wakfu window by checking for the specific format: "CharacterName - WAKFU"
+            # This is the standard format for Wakfu game windows
+            if " - WAKFU" in window_text or " - Wakfu" in window_text:
+                return True
+            
+            # Also check by process name
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(foreground_window)
+                import psutil
+                try:
+                    process = psutil.Process(pid)
+                    process_name = process.name().lower()
+                    if "wakfu" in process_name or "ankama" in process_name:
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            except Exception:
+                pass
+            
+            return False
+        except Exception as e:
+            print(f"DEBUG: Error checking window focus: {e}")
+            # On error, return True to keep overlay visible
+            return True
     
     def setup_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -1576,7 +1705,8 @@ class WakfuIopResourceTracker(QMainWindow):
                         self.pending_preparation_loss = True
                         self.preparation_loss_caster = caster_name
                         self.preparation_loss_spell = spell_name
-                        print(f"DEBUG: Préparation loss pending - waiting for damage confirmation from {spell_name}")
+                        print(f"DEBUG: ⚠️ Préparation loss pending - waiting for damage confirmation from {spell_name}")
+                        print(f"DEBUG:   caster_name: '{caster_name}', tracked: '{self.tracked_player_name}', prep: {self.preparation}")
                     
                     # Handle Égaré gain spells (Fulgur, Colère de Iop)
                     elif spell_name in ["Fulgur", "Colère de Iop"]:
@@ -1614,10 +1744,6 @@ class WakfuIopResourceTracker(QMainWindow):
                 self.current_puissance = 0
                 self.current_egare = False
                 self.current_preparation = 0
-                # Stop préparation bouncing loop
-                self.preparation_bounce_loop_active = False
-                self.preparation_bounce_velocity = 0
-                self.preparation_bounce_offset = 0
                 # Reset damage confirmation system
                 self.pending_preparation_loss = False
                 self.preparation_loss_caster = None
@@ -1754,12 +1880,8 @@ class WakfuIopResourceTracker(QMainWindow):
                     self.is_iop_turn = False
                     self.overlay_visible = False
                     
-                    # If we were waiting for damage confirmation, cancel it
-                    if self.pending_preparation_loss:
-                        self.pending_preparation_loss = False
-                        self.preparation_loss_caster = None
-                        self.preparation_loss_spell = None
-                        print(f"DEBUG: Préparation damage confirmation cancelled - turn passed without damage")
+                    # Note: Do NOT cancel pending_preparation_loss - La préparation doit être consommée
+                    # au prochain sort qui fait des dégâts, même si des tours passent entre temps.
                     
                     print(f"DEBUG: Iop turn ended - overlay hidden (turn passed by {turn_owner})")
                 elif turn_owner:
@@ -1772,12 +1894,8 @@ class WakfuIopResourceTracker(QMainWindow):
                         self.is_iop_turn = False
                         self.overlay_visible = False
                         
-                        # If we were waiting for damage confirmation, cancel it
-                        if self.pending_preparation_loss:
-                            self.pending_preparation_loss = False
-                            self.preparation_loss_caster = None
-                            self.preparation_loss_spell = None
-                            print(f"DEBUG: Préparation damage confirmation cancelled - assumed turn end without damage")
+                        # Note: Do NOT cancel pending_preparation_loss - La préparation doit être consommée
+                        # au prochain sort qui fait des dégâts, même si des tours passent entre temps.
                         
                         print(f"DEBUG: Iop turn ended - overlay hidden (assumed turn end)")
                     else:
@@ -1862,6 +1980,40 @@ class WakfuIopResourceTracker(QMainWindow):
             
             # Note: Spell processing is now consolidated above to prevent duplicate timeline entries
             
+            # Parse damage lines FIRST (before Courroux loss) to handle préparation consumption
+            # This must come BEFORE Courroux detection to ensure préparation is consumed even when using Courroux
+            # Parse damage lines - "Sac à patates: -64 PV  (Feu)" or "Sac à patates: -133 PV (Feu) (Courroux)"
+            damage_match = re.search(r'\[Information \(combat\)\] ([^:]+):\s*-(\d+)\s*PV', line)
+            
+            # Debug: Always log damage detection for troubleshooting
+            if damage_match:
+                damage_target = damage_match.group(1).strip()
+                damage_amount = int(damage_match.group(2))
+                
+                # Check if we're waiting for damage confirmation
+                if self.pending_preparation_loss:
+                    print(f"DEBUG: Damage detected: {damage_amount} PV to {damage_target}")
+                    print(f"DEBUG: pending_preparation_loss: {self.pending_preparation_loss}")
+                    print(f"DEBUG: preparation_loss_caster: '{self.preparation_loss_caster}'")
+                    print(f"DEBUG: tracked_player_name: '{self.tracked_player_name}'")
+                    print(f"DEBUG: preparation_loss_spell: '{self.preparation_loss_spell}'")
+                    
+                    # Check if this damage is from the tracked player's spell
+                    if self.preparation_loss_caster == self.tracked_player_name:
+                        # Damage confirmed - remove Préparation
+                        self.preparation = 0
+                        self.current_preparation = self.preparation
+                        # Reset damage confirmation system
+                        self.pending_preparation_loss = False
+                        self.preparation_loss_caster = None
+                        self.preparation_loss_spell = None
+                        print(f"DEBUG: ✅ Préparation lost due to confirmed damage: {damage_amount} PV to {damage_target}")
+                        return
+                    else:
+                        print(f"DEBUG: ❌ Damage detected but preparation_loss_caster doesn't match - caster: '{self.preparation_loss_caster}', tracked: '{self.tracked_player_name}'")
+                else:
+                    print(f"DEBUG: Damage detected but not waiting for preparation loss - preparation: {self.preparation}, pending: {self.pending_preparation_loss}")
+            
             # Parse Courroux loss - damage dealt with (Courroux) tag
             # Pattern: "[Information (combat)] monster: -xx PV (element) (Courroux)"
             if "(Courroux)" in line and "PV" in line:
@@ -1885,32 +2037,6 @@ class WakfuIopResourceTracker(QMainWindow):
                     self.trigger_preparation_slide()
                 print(f"DEBUG: Préparation gained: {preparation_total} stacks")
                 return
-            
-            # Parse damage lines - "Sac à patates: -64 PV  (Feu)" or "Sac à patates: -133 PV (Feu) (Courroux)"
-            damage_match = re.search(r'\[Information \(combat\)\] ([^:]+):\s*-(\d+)\s*PV', line)
-            if damage_match and self.pending_preparation_loss:
-                damage_target = damage_match.group(1).strip()
-                damage_amount = int(damage_match.group(2))
-                
-                print(f"DEBUG: Damage detected: {damage_amount} PV to {damage_target} (waiting for: {self.preparation_loss_caster})")
-                
-                # Check if this damage is from the tracked player's spell
-                if self.preparation_loss_caster == self.tracked_player_name:
-                    # Damage confirmed - remove Préparation
-                    self.preparation = 0
-                    self.current_preparation = self.preparation
-                    # Stop continuous bouncing loop
-                    self.preparation_bounce_loop_active = False
-                    self.preparation_bounce_velocity = 0
-                    self.preparation_bounce_offset = 0
-                    # Reset damage confirmation system
-                    self.pending_preparation_loss = False
-                    self.preparation_loss_caster = None
-                    self.preparation_loss_spell = None
-                    print(f"DEBUG: Préparation lost due to confirmed damage: {damage_amount} PV to {damage_target}")
-                    return
-                else:
-                    print(f"DEBUG: Damage detected but not from tracked player - caster: {self.preparation_loss_caster}, tracked: {self.tracked_player_name}")
                 
         except Exception as e:
             pass  # Silently handle parsing errors
@@ -1919,7 +2045,7 @@ class WakfuIopResourceTracker(QMainWindow):
         """Update animations and visual effects"""
         self.animation_frame += 1
         
-        # Show/hide overlay based on turn-based visibility (only during Iop's turn)
+        # Show/hide overlay based on turn-based visibility and combat status
         if self.overlay_visible and self.in_combat:
             self.concentration_icon.show()
             self.concentration_bar.show()
@@ -1992,11 +2118,22 @@ class WakfuIopResourceTracker(QMainWindow):
             # Reset state tracking when hidden
             self.last_puissance_bars_state = 0
         
-        # Update courroux display - only show if we have stacks AND overlay is visible
+        # Update courroux display with fade animation (like Pointe/Balise)
         if self.current_courroux > 0 and self.overlay_visible and self.in_combat:
+            # Stacks active - fade in to full opacity
+            if self.courroux_fade_alpha < 255:
+                self.courroux_fade_alpha = min(255, self.courroux_fade_alpha + self.courroux_fade_speed)
             self.courroux_icon.show()
+            self.courroux_icon.raise_()  # Ensure icon is on top
             self.courroux_counter.setText(str(int(self.current_courroux)))
             self.courroux_counter.show()
+            self.courroux_counter.raise_()  # Ensure counter is on top
+            # Apply opacity
+            if self.courroux_opacity_effect:
+                self.courroux_opacity_effect.setOpacity(self.courroux_fade_alpha / 255)
+            if self.courroux_counter_opacity_effect:
+                self.courroux_counter_opacity_effect.setOpacity(self.courroux_fade_alpha / 255)
+            
             # Only print debug message when state changes
             if self.current_courroux != self.last_courroux_state:
                 print(f"DEBUG: Courroux showing - stacks: {self.current_courroux}, overlay_visible: {self.overlay_visible}, in_combat: {self.in_combat}")
@@ -2023,23 +2160,42 @@ class WakfuIopResourceTracker(QMainWindow):
                     self.courroux_bounce_offset = self.courroux_ground_level
             
             # Apply bounce offset to courroux icon position
+            # Position: right edge of icon aligned with right edge of bar, top aligned with top of bar
             base_x, base_y = self.concentration_bar.pos().x(), self.concentration_bar.pos().y()
-            courroux_x = int(base_x + 255)
-            courroux_y = int(base_y - 2 + self.courroux_bounce_offset)  # Positive offset = UP from ground level
+            bar_width = self.concentration_bar.width()  # 250
+            icon_width = 40
+            courroux_x = int(base_x + bar_width - icon_width)  # Right edge of icon = right edge of bar
+            courroux_y = int(base_y + self.courroux_bounce_offset)  # Top of icon = top of bar, bounce offset for animation
             
             # Move both icon and counter together
             self.courroux_icon.move(courroux_x, courroux_y)
             self.courroux_counter.move(courroux_x, courroux_y)  # Counter follows the icon
         else:
-            self.courroux_icon.hide()
-            self.courroux_counter.hide()
+            # No stacks - fade out
+            if self.courroux_fade_alpha > 0:
+                self.courroux_fade_alpha = max(0, self.courroux_fade_alpha - self.courroux_fade_speed)
+                # Apply opacity
+                if self.courroux_opacity_effect:
+                    self.courroux_opacity_effect.setOpacity(self.courroux_fade_alpha / 255)
+                if self.courroux_counter_opacity_effect:
+                    self.courroux_counter_opacity_effect.setOpacity(self.courroux_fade_alpha / 255)
+                if self.courroux_icon.isVisible():
+                    self.courroux_icon.show()
+                    self.courroux_icon.raise_()
+                    self.courroux_counter.show()
+                    self.courroux_counter.raise_()
+            else:
+                # Fully faded out - hide completely
+                self.courroux_icon.hide()
+                self.courroux_counter.hide()
+            
             if self.current_courroux > 0 and not self.last_courroux_hidden_debug:
                 print(f"DEBUG: Courroux hidden despite having stacks - overlay_visible: {self.overlay_visible}, in_combat: {self.in_combat}")
                 self.last_courroux_hidden_debug = True
             # Reset state tracking when hidden
             self.last_courroux_state = 0
         
-        # Update préparation display - always show if we have stacks (regardless of turn state)
+        # Update préparation display - always show if we have stacks
         if self.current_preparation > 0 and self.in_combat:
             self.preparation_icon.show()
             self.preparation_counter.setText(str(int(self.current_preparation)))
@@ -2058,10 +2214,16 @@ class WakfuIopResourceTracker(QMainWindow):
                 if self.preparation_slide_offset < 0:
                     self.preparation_slide_offset = 0
             
-            # Apply slide offset to préparation icon position
-            base_x, base_y = self.concentration_bar.pos().x(), self.concentration_bar.pos().y()
-            preparation_x = int(base_x + 290 + self.preparation_offset_x)
-            preparation_y = int(base_y - 2 + self.preparation_offset_y - self.preparation_slide_offset + self.preparation_bounce_offset)  # Slide + bounce offset
+            # Apply slide offset to préparation icon position using absolute position if available
+            if self.preparation_absolute_x is not None and self.preparation_absolute_y is not None:
+                # Use absolute position and apply slide offset
+                preparation_x = int(self.preparation_absolute_x)
+                preparation_y = int(self.preparation_absolute_y - self.preparation_slide_offset)
+            else:
+                # Fallback to relative position (shouldn't happen after loading)
+                base_x, base_y = self.concentration_bar.pos().x(), self.concentration_bar.pos().y()
+                preparation_x = int(base_x + 290 + self.preparation_offset_x)
+                preparation_y = int(base_y - 2 + self.preparation_offset_y - self.preparation_slide_offset)
             
             # Move both icon and counter together
             self.preparation_icon.move(preparation_x, preparation_y)
@@ -2074,50 +2236,6 @@ class WakfuIopResourceTracker(QMainWindow):
                 self.last_preparation_hidden_debug = True
             # Reset state tracking when hidden
             self.last_preparation_state = 0
-        
-        # Apply bounce animation for préparation icon (continuous loop) - ALWAYS runs when préparation exists
-        if self.current_preparation > 0 and self.preparation_bounce_loop_active:
-            # Only print debug occasionally to avoid spam
-            if self.animation_frame % 30 == 0:  # Every 30 frames (0.5 seconds at 60fps)
-                print(f"DEBUG: Préparation bouncing active - stacks: {self.current_preparation}, overlay_visible: {self.overlay_visible}, in_combat: {self.in_combat}, loop_delay: {self.preparation_bounce_loop_delay}, bounce_delay: {self.preparation_bounce_delay}, velocity: {self.preparation_bounce_velocity}, offset: {self.preparation_bounce_offset}")
-            # Handle delay between bounce loops
-            if self.preparation_bounce_loop_delay > 0:
-                self.preparation_bounce_loop_delay -= 1
-                if self.preparation_bounce_loop_delay == 0:
-                    # Start new bounce sequence
-                    self.trigger_preparation_bounce()
-            # Handle initial delay before first bounce
-            elif self.preparation_bounce_delay > 0:
-                self.preparation_bounce_delay -= 1
-                if self.preparation_bounce_delay == 0:
-                    self.trigger_preparation_bounce()
-            # Handle active bouncing
-            elif self.preparation_bounce_velocity != 0 or self.preparation_bounce_offset != 0:
-                # Apply gravity to velocity
-                self.preparation_bounce_velocity += self.preparation_bounce_gravity
-                
-                # Update position based on velocity
-                self.preparation_bounce_offset += self.preparation_bounce_velocity
-                
-                # Check for ground collision (bounce)
-                if self.preparation_bounce_offset >= self.preparation_bounce_ground_level:
-                    # Hit the ground - reverse velocity and apply damping
-                    self.preparation_bounce_offset = self.preparation_bounce_ground_level
-                    self.preparation_bounce_velocity = -self.preparation_bounce_velocity * self.preparation_bounce_damping
-                    
-                    # Stop bouncing if velocity is too small
-                    if abs(self.preparation_bounce_velocity) < self.preparation_bounce_min_velocity:
-                        self.preparation_bounce_velocity = 0
-                        self.preparation_bounce_offset = self.preparation_bounce_ground_level
-                        # Start delay for next bounce loop
-                        self.preparation_bounce_loop_delay = self.preparation_bounce_loop_delay_max
-                        print("DEBUG: Préparation bounce sequence ended - starting loop delay")
-            # If none of the above conditions are met, start bouncing immediately
-            else:
-                print("DEBUG: Préparation bouncing conditions not met - starting bounce immediately")
-                self.trigger_preparation_bounce()
-            
-            # Bounce offset is now applied in the preparation display logic above to avoid duplicate positioning
         
         # Update égaré icon with fade animation (only during Iop's turn)
         if self.current_egare and self.overlay_visible and self.in_combat:
@@ -2233,7 +2351,7 @@ class WakfuIopResourceTracker(QMainWindow):
 
     def update_timeline_display(self):
         """Refresh timeline labels to reflect current entries."""
-        # Only update timeline if overlay is visible
+        # Only update timeline if overlay is visible and in combat
         if not (self.overlay_visible and self.in_combat):
             # Hide all timeline elements if overlay is not visible
             for i in range(self.timeline_max_slots):
@@ -2295,49 +2413,54 @@ class WakfuIopResourceTracker(QMainWindow):
         # Set initial upward velocity for the bounce (smaller jump)
         self.courroux_bounce_velocity = -6  # Negative velocity = upward movement (reduced from -12)
         self.courroux_bounce_offset = 0  # Start from ground level
+        # Reset fade alpha to ensure visible appearance (like Pointe/Balise)
+        self.courroux_fade_alpha = 0  # Start faded out, will fade in smoothly
     
     def trigger_preparation_slide(self):
         """Trigger a slide animation when préparation is gained"""
         # Start with slide offset (slide down effect)
         self.preparation_slide_offset = self.preparation_slide_max  # Start this many pixels above
         
-        # Start bounce animation immediately (no delay)
-        self.preparation_bounce_delay = 0  # No delay - start bouncing immediately
-        self.preparation_bounce_velocity = -10  # Start with upward velocity immediately
-        self.preparation_bounce_offset = 0  # Start at ground level
-        
-        # Start continuous bouncing loop
-        self.preparation_bounce_loop_active = True
-        self.preparation_bounce_loop_delay = 0  # No delay for first bounce
-        
-        print("DEBUG: Préparation slide and immediate bounce loop triggered")
-    
-    def trigger_preparation_bounce(self):
-        """Trigger the actual bounce animation after delay"""
-        # Start with upward velocity (negative = up) - bigger initial jump
-        self.preparation_bounce_velocity = -10  # Negative velocity = upward movement (faster than before)
-        self.preparation_bounce_offset = 0  # Start from ground level
-        self.preparation_bounce_delay = 0  # Clear the delay
-        print(f"DEBUG: Préparation bounce animation started - overlay_visible: {self.overlay_visible}")
+        print("DEBUG: Préparation slide triggered")
     
     def save_positions(self):
         """Save current positions to config file"""
         try:
+            # Save absolute positions
             positions = {
                 'concentration_bar': {
                     'x': self.concentration_bar.x(),
                     'y': self.concentration_bar.y()
                 },
-                'combo_group_offset': {
-                    'x': self.combo_group_offset_x,
-                    'y': self.combo_group_offset_y
-                },
-                'preparation_offset': {
-                    'x': self.preparation_offset_x,
-                    'y': self.preparation_offset_y
-                },
                 'positions_locked': self.positions_locked
             }
+            
+            # Save preparation absolute position (current position or calculated)
+            if self.preparation_absolute_x is not None and self.preparation_absolute_y is not None:
+                positions['preparation_icon'] = {
+                    'x': self.preparation_absolute_x,
+                    'y': self.preparation_absolute_y
+                }
+            elif self.preparation_icon.isVisible():
+                # Save current visible position as absolute
+                positions['preparation_icon'] = {
+                    'x': self.preparation_icon.x(),
+                    'y': self.preparation_icon.y()
+                }
+            
+            # Save combo group absolute position (current position or calculated)
+            if self.combo_group_absolute_x is not None and self.combo_group_absolute_y is not None:
+                positions['combo_group'] = {
+                    'x': self.combo_group_absolute_x,
+                    'y': self.combo_group_absolute_y
+                }
+            elif self.combo_ui_elements and self.combo_ui_elements[0].isVisible():
+                # Save position of first combo widget as reference
+                positions['combo_group'] = {
+                    'x': self.combo_ui_elements[0].x(),
+                    'y': self.combo_ui_elements[0].y()
+                }
+            
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(positions, f, indent=2)
             pass  # Positions saved silently
@@ -2355,13 +2478,41 @@ class WakfuIopResourceTracker(QMainWindow):
                     x, y = positions['concentration_bar']['x'], positions['concentration_bar']['y']
                     self.concentration_bar.move(x, y)
                 
-                if 'combo_group_offset' in positions:
+                # Load combo group absolute position
+                if 'combo_group' in positions:
+                    self.combo_group_absolute_x = positions['combo_group']['x']
+                    self.combo_group_absolute_y = positions['combo_group']['y']
+                    # Apply to combo widgets
+                    for combo_widget in self.combo_ui_elements:
+                        if combo_widget.isVisible():
+                            combo_spacing = 45
+                            combo_widget.move(
+                                self.combo_group_absolute_x + (self.combo_ui_elements.index(combo_widget) * combo_spacing),
+                                self.combo_group_absolute_y
+                            )
+                elif 'combo_group_offset' in positions:
+                    # Old format: convert offsets to absolute position after concentration bar is positioned
                     self.combo_group_offset_x = positions['combo_group_offset']['x']
                     self.combo_group_offset_y = positions['combo_group_offset']['y']
+                    # Convert to absolute position (position will be set by position_elements)
+                    self.combo_group_absolute_x = self.concentration_bar.x() + 80 + self.combo_group_offset_x
+                    self.combo_group_absolute_y = self.concentration_bar.y() + 80 + self.combo_group_offset_y
                 
-                if 'preparation_offset' in positions:
+                # Load preparation icon absolute position
+                if 'preparation_icon' in positions:
+                    self.preparation_absolute_x = positions['preparation_icon']['x']
+                    self.preparation_absolute_y = positions['preparation_icon']['y']
+                    self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                    self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                elif 'preparation_offset' in positions:
+                    # Old format: convert offsets to absolute position after concentration bar is positioned
                     self.preparation_offset_x = positions['preparation_offset']['x']
                     self.preparation_offset_y = positions['preparation_offset']['y']
+                    # Convert to absolute position
+                    self.preparation_absolute_x = self.concentration_bar.x() + 290 + self.preparation_offset_x
+                    self.preparation_absolute_y = self.concentration_bar.y() - 2 + self.preparation_offset_y
+                    self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                    self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
                 
                 if 'positions_locked' in positions:
                     self.positions_locked = positions['positions_locked']
@@ -2387,10 +2538,9 @@ class WakfuIopResourceTracker(QMainWindow):
                 if combo_widget.isVisible():
                     combo_rect = combo_widget.geometry()
                     if combo_rect.contains(click_pos):
-                        # Calculate offset from concentration bar for combo group
-                        combo_base_x = self.concentration_bar.x() + self.combo_group_offset_x
-                        combo_base_y = self.concentration_bar.y() + 80 + self.combo_group_offset_y
-                        self.drag_start_position = click_pos - QPoint(combo_base_x, combo_base_y)
+                        # Use absolute position for combo group (store which combo was clicked)
+                        self.dragged_combo_index = self.combo_ui_elements.index(combo_widget)
+                        self.drag_start_position = click_pos - combo_widget.frameGeometry().topLeft()
                         self.dragging_concentration = False
                         self.dragging_combos = True
                         self.dragging_preparation = False
@@ -2401,10 +2551,8 @@ class WakfuIopResourceTracker(QMainWindow):
             if self.preparation_icon.isVisible():
                 preparation_rect = self.preparation_icon.geometry()
                 if preparation_rect.contains(click_pos):
-                    # Calculate offset from concentration bar for preparation
-                    preparation_base_x = self.concentration_bar.x() + 290 + self.preparation_offset_x
-                    preparation_base_y = self.concentration_bar.y() - 2 + self.preparation_offset_y
-                    self.drag_start_position = click_pos - QPoint(preparation_base_x, preparation_base_y)
+                    # Use absolute position for preparation
+                    self.drag_start_position = click_pos - self.preparation_icon.frameGeometry().topLeft()
                     self.dragging_concentration = False
                     self.dragging_combos = False
                     self.dragging_preparation = True
@@ -2415,40 +2563,50 @@ class WakfuIopResourceTracker(QMainWindow):
         """Handle mouse move for dragging concentration bar or combo columns separately"""
         if event.buttons() == Qt.MouseButton.LeftButton and not self.positions_locked:
             if self.dragging_concentration:
-                # Move concentration bar and all other elements
+                # Move only concentration bar (other elements stay in place)
                 new_pos = event.globalPosition().toPoint() - self.drag_start_position
                 self.concentration_bar.move(new_pos)
-                self.position_elements()
                 self.auto_save_positions()
                 print(f"DEBUG: Moving concentration bar to {new_pos}")
             elif self.dragging_combos:
-                # Move only combo columns
-                new_pos = event.globalPosition().toPoint() - self.drag_start_position
-                combo_base_x = self.concentration_bar.x() + 80  # Default combo position
-                combo_base_y = self.concentration_bar.y() + 80
+                # Move only combo columns (save absolute position of first combo)
+                clicked_combo_pos = event.globalPosition().toPoint() - self.drag_start_position
                 
-                # Calculate new offset from concentration bar
-                self.combo_group_offset_x = new_pos.x() - combo_base_x
-                self.combo_group_offset_y = new_pos.y() - combo_base_y
+                # Calculate the position of the first combo in the group
+                combo_spacing = 45
+                first_combo_pos_x = clicked_combo_pos.x() - (self.dragged_combo_index * combo_spacing)
+                first_combo_pos_y = clicked_combo_pos.y()
                 
-                # Update combo positions
-                self.position_elements()
+                # Save absolute position for combos (position of first combo)
+                self.combo_group_absolute_x = first_combo_pos_x
+                self.combo_group_absolute_y = first_combo_pos_y
+                
+                # Move all combo widgets to the new absolute position
+                for combo_widget in self.combo_ui_elements:
+                    if combo_widget.isVisible():
+                        combo_spacing = 45
+                        combo_index = self.combo_ui_elements.index(combo_widget)
+                        combo_widget.move(
+                            first_combo_pos_x + (combo_index * combo_spacing),
+                            first_combo_pos_y
+                        )
+                
                 self.auto_save_positions()
-                print(f"DEBUG: Moving combo group - offset: ({self.combo_group_offset_x}, {self.combo_group_offset_y})")
+                print(f"DEBUG: Moving combo group - first combo at ({first_combo_pos_x}, {first_combo_pos_y})")
             elif self.dragging_preparation:
-                # Move only preparation icon
+                # Move only preparation icon (save absolute position)
                 new_pos = event.globalPosition().toPoint() - self.drag_start_position
-                preparation_base_x = self.concentration_bar.x() + 290  # Default preparation position
-                preparation_base_y = self.concentration_bar.y() - 2
                 
-                # Calculate new offset from concentration bar
-                self.preparation_offset_x = new_pos.x() - preparation_base_x
-                self.preparation_offset_y = new_pos.y() - preparation_base_y
+                # Save absolute position for preparation
+                self.preparation_absolute_x = new_pos.x()
+                self.preparation_absolute_y = new_pos.y()
                 
-                # Update preparation position
-                self.position_elements()
+                # Move icon and counter together
+                self.preparation_icon.move(new_pos.x(), new_pos.y())
+                self.preparation_counter.move(new_pos.x(), new_pos.y())
+                
                 self.auto_save_positions()
-                print(f"DEBUG: Moving preparation icon - offset: ({self.preparation_offset_x}, {self.preparation_offset_y})")
+                print(f"DEBUG: Moving preparation icon to {new_pos}")
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release to stop dragging"""
@@ -2471,6 +2629,67 @@ class WakfuIopResourceTracker(QMainWindow):
         self.auto_save_timer.timeout.connect(self.save_positions)
         self.auto_save_timer.setSingleShot(True)
         self.auto_save_timer.start(500)
+    
+    def toggle_deduplication_debug(self):
+        """Toggle deduplication debug mode"""
+        if hasattr(self, 'log_monitor'):
+            self.log_monitor.set_deduplication_debug(not self.debug_mode)
+            self.debug_mode = not self.debug_mode
+            print(f"DEBUG: Mode debug déduplication {'activé' if self.debug_mode else 'désactivé'}")
+    
+    def show_deduplication_stats(self):
+        """Show deduplication statistics"""
+        if hasattr(self, 'log_monitor'):
+            stats = self.log_monitor.get_deduplication_stats()
+            if stats:
+                print(f"""
+DEBUG: Statistiques de déduplication Iop
+========================================
+Messages totaux: {stats['total_messages']}
+Doublons détectés: {stats['duplicates_detected']}
+Messages traités: {stats['messages_processed']}
+Taux de doublons: {stats['duplicate_rate']:.1f}%
+Fenêtre temporelle: {stats['duplicate_window_ms']}ms
+                """)
+            else:
+                print("DEBUG: Aucune statistique de déduplication disponible")
+    
+    def reset_deduplication_stats(self):
+        """Reset deduplication statistics"""
+        if hasattr(self, 'log_monitor'):
+            self.log_monitor.deduplicator.reset_stats()
+            print("DEBUG: Statistiques de déduplication remises à zéro")
+    
+    def show_context_menu(self, position):
+        """Show context menu for resource bars with deduplication options"""
+        menu = QMenu(self)
+        
+        # Options de déduplication
+        dedup_debug_action = QAction("🔧 Toggle Deduplication Debug", self)
+        dedup_debug_action.setCheckable(True)
+        dedup_debug_action.setChecked(self.debug_mode)
+        dedup_debug_action.triggered.connect(self.toggle_deduplication_debug)
+        menu.addAction(dedup_debug_action)
+        
+        # Stats de déduplication
+        stats_action = QAction("📊 Deduplication Stats", self)
+        stats_action.triggered.connect(self.show_deduplication_stats)
+        menu.addAction(stats_action)
+        
+        # Reset stats
+        reset_stats_action = QAction("🔄 Reset Deduplication Stats", self)
+        reset_stats_action.triggered.connect(self.reset_deduplication_stats)
+        menu.addAction(reset_stats_action)
+        
+        menu.addSeparator()
+        
+        # Quit options
+        quit_action = QAction("🚪 Quit Application", self)
+        quit_action.triggered.connect(self.close)
+        menu.addAction(quit_action)
+        
+        # Show menu at cursor position
+        menu.exec(self.mapToGlobal(position))
     
     def closeEvent(self, event):
         """Handle close event"""
