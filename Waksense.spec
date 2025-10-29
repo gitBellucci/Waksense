@@ -17,9 +17,10 @@ datas = [
     # Log deduplicator module (needed at runtime)
     (str(spec_file_dir / 'log_deduplicator.py'), '.'),
     
-    # Tracker modules (needed for --iop and --cra arguments)
+    # Tracker modules (needed for --iop, --cra and --ouginak arguments)
     (str(spec_file_dir / 'Iop' / 'wakfu_iop_resource_tracker.py'), 'Iop'),
     (str(spec_file_dir / 'Cra' / 'wakfu_resource_tracker_fullscreen.py'), 'Cra'),
+    (str(spec_file_dir / 'Ouginak' / 'wakfu_ouginak_resource_tracker.py'), 'Ouginak'),
     
     # Breed icons
     (str(spec_file_dir / 'img' / 'breedsicons'), 'img/breedsicons'),
@@ -29,6 +30,9 @@ datas = [
     
     # Cra images
     (str(spec_file_dir / 'Cra' / 'img'), 'Cra/img'),
+    
+    # Ouginak images
+    (str(spec_file_dir / 'Ouginak' / 'img'), 'Ouginak/img'),
 ]
 
 # Hidden imports
@@ -42,6 +46,7 @@ hiddenimports = [
     'log_deduplicator',
     'Iop.wakfu_iop_resource_tracker',
     'Cra.wakfu_resource_tracker_fullscreen',
+    'Ouginak.wakfu_ouginak_resource_tracker',
 ]
 
 a = Analysis(

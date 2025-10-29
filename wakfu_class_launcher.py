@@ -170,10 +170,21 @@ class LogMonitorThread(QThread):
             "Flèche lumineuse", "Pluie de flèches", "Roulade"
         ]
         
+        # Ouginak spells
+        ouginak_spells = [
+            "Emeute", "Émeute", "Fleau", "Fléau", "Rupture", "Plombage",
+            "Balafre", "Croc-en-jambe", "Bastonnade", "Molosse", "Hachure",
+            "Saccade", "Balayage", "Contusion", "Cador", "Brise'Os", "Brise'O",
+            "Baroud", "Chasseur", "Elan", "Élan", "Canine", "Apaisement",
+            "Poursuite", "Meute", "Proie", "Ougigarou", "Chienchien"
+        ]
+        
         if any(iop_spell in spell_name for iop_spell in iop_spells):
             return "Iop"
         elif any(cra_spell in spell_name for cra_spell in cra_spells):
             return "Cra"
+        elif any(ouginak_spell in spell_name for ouginak_spell in ouginak_spells):
+            return "Ouginak"
         
         return None
     
@@ -259,6 +270,7 @@ class DetectionOverlay(QWidget):
         super().__init__()
         self.main_window = main_window
         self.detected_classes = {}  # {class_name: player_name}
+        self.lock_states = {}  # {class_name: is_locked}
         self.is_collapsed = False
         self.is_interacting = False  # Track if user is interacting with overlay
         
@@ -391,6 +403,8 @@ class DetectionOverlay(QWidget):
                 icon_file = icon_path / "iopicon.png"
             elif class_name == "Cra":
                 icon_file = icon_path / "craicon.png"
+            elif class_name == "Ouginak":
+                icon_file = icon_path / "ougiicon.png"
             else:
                 icon_file = None
             
@@ -407,7 +421,40 @@ class DetectionOverlay(QWidget):
                     icon_label.setText("⚔")
                 elif class_name == "Cra":
                     icon_label.setText("🏹")
+                elif class_name == "Ouginak":
+                    icon_label.setText("🐕")
                 icon_label.setStyleSheet("font-size: 16px; color: #ffffff;")
+            
+            # Create lock icon button (unlocked by default)
+            lock_button = QPushButton("🔓")
+            lock_button.setFixedSize(20, 20)
+            lock_button.setCheckable(True)
+            lock_button.setChecked(False)  # Unlocked by default
+            lock_button.setToolTip("Click to lock overlay (always show during combat)")
+            lock_button.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(100, 100, 100, 0.3);
+                    border: 1px solid rgba(150, 150, 150, 0.6);
+                    border-radius: 10px;
+                    color: #ffffff;
+                    font-size: 12px;
+                }
+                QPushButton:hover {
+                    background-color: rgba(100, 100, 100, 0.5);
+                    border: 1px solid rgba(150, 150, 150, 1.0);
+                }
+                QPushButton:checked {
+                    background-color: rgba(255, 200, 0, 0.6);
+                    border: 1px solid rgba(255, 200, 0, 1.0);
+                }
+            """)
+            
+            # Store lock button reference and connect
+            lock_button.toggled.connect(lambda checked, cn=class_name: self.toggle_class_lock(cn, checked))
+            
+            # Store references
+            container.lock_button = lock_button
+            container.class_name = class_name
             
             # Create name label - responsive container sans background noir
             name_label = QLabel(player_name)
@@ -440,10 +487,38 @@ class DetectionOverlay(QWidget):
                         border: 1px solid rgba(74, 158, 255, 0.6);
                     }
                 """)
+            elif class_name == "Ouginak":
+                name_label.setStyleSheet("""
+                    QLabel {
+                        font-size: 11px;
+                        color: #ffffff;
+                        font-weight: bold;
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        padding: 3px 8px;
+                        background-color: rgba(139, 69, 19, 0.4);
+                        border-radius: 6px;
+                        border: 1px solid rgba(139, 69, 19, 0.6);
+                    }
+                """)
+            
+            if class_name == "Cra":
+                name_label.setStyleSheet("""
+                    QLabel {
+                        font-size: 11px;
+                        color: #ffffff;
+                        font-weight: bold;
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        padding: 3px 8px;
+                        background-color: rgba(74, 158, 255, 0.4);
+                        border-radius: 6px;
+                        border: 1px solid rgba(74, 158, 255, 0.6);
+                    }
+                """)
             
             # Add to container - pseudo plus près de la flèche
             container_layout.addStretch()  # Push content to the right
             container_layout.addWidget(icon_label)
+            container_layout.addWidget(lock_button)
             container_layout.addWidget(name_label)
             
             # Create delete button
@@ -508,6 +583,20 @@ class DetectionOverlay(QWidget):
                     }
                     QPushButton:pressed {
                         background-color: rgba(74, 158, 255, 0.2);
+                    }
+                """)
+            elif class_name == "Ouginak":
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        border: none;
+                        padding: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(139, 69, 19, 0.1);
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(139, 69, 19, 0.2);
                     }
                 """)
             
@@ -575,6 +664,19 @@ class DetectionOverlay(QWidget):
                                             border: 2px solid rgba(74, 158, 255, 1.0);
                                         }
                                     """)
+                                elif class_name == "Ouginak":
+                                    widget.name_label.setStyleSheet("""
+                                        QLabel {
+                                            font-size: 11px;
+                                            color: #ffffff;
+                                            font-weight: bold;
+                                            font-family: 'Segoe UI', Arial, sans-serif;
+                                            padding: 3px 8px;
+                                            background-color: rgba(139, 69, 19, 1.0);
+                                            border-radius: 6px;
+                                            border: 2px solid rgba(139, 69, 19, 1.0);
+                                        }
+                                    """)
                             else:
                                 # Inactive state - more transparent
                                 if class_name == "Iop":
@@ -601,6 +703,19 @@ class DetectionOverlay(QWidget):
                                             background-color: rgba(74, 158, 255, 0.4);
                                             border-radius: 6px;
                                             border: 1px solid rgba(74, 158, 255, 0.6);
+                                        }
+                                    """)
+                                elif class_name == "Ouginak":
+                                    widget.name_label.setStyleSheet("""
+                                        QLabel {
+                                            font-size: 11px;
+                                            color: #ffffff;
+                                            font-weight: bold;
+                                            font-family: 'Segoe UI', Arial, sans-serif;
+                                            padding: 3px 8px;
+                                            background-color: rgba(139, 69, 19, 0.4);
+                                            border-radius: 6px;
+                                            border: 1px solid rgba(139, 69, 19, 0.6);
                                         }
                                     """)
                             break
@@ -631,6 +746,71 @@ class DetectionOverlay(QWidget):
                 self.hide()
             
             print(f"DEBUG: Personnage {player_name} ({class_name}) supprimé de l'overlay")
+    
+    def toggle_class_lock(self, class_name, is_locked):
+        """Toggle lock state for a class overlay"""
+        self.lock_states[class_name] = is_locked
+        
+        # Save lock state to file so trackers can read it
+        self.save_lock_states_to_file()
+        
+        # Update icon
+        for i in range(self.classes_layout.count()):
+            widget = self.classes_layout.itemAt(i).widget()
+            if hasattr(widget, 'class_name') and widget.class_name == class_name:
+                # Find the lock button in the container
+                container = widget.layout().itemAt(0).widget()  # Get the container widget
+                if hasattr(container, 'lock_button'):
+                    lock_button = container.lock_button
+                    if is_locked:
+                        lock_button.setText("🔒")
+                        lock_button.setToolTip("Overlay will always show during combat")
+                    else:
+                        lock_button.setText("🔓")
+                        lock_button.setToolTip("Overlay hides when turn passes")
+        
+        # Notify main window about lock state change
+        if hasattr(self.main_window, 'on_class_lock_changed'):
+            self.main_window.on_class_lock_changed(class_name, is_locked)
+        
+        print(f"DEBUG: Lock state for {class_name}: {'LOCKED' if is_locked else 'UNLOCKED'}")
+    
+    def save_lock_states_to_file(self):
+        """Save lock states to file for trackers to read"""
+        try:
+            if getattr(sys, 'frozen', False):
+                app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
+            else:
+                app_data_dir = Path(__file__).parent
+            
+            app_data_dir.mkdir(parents=True, exist_ok=True)
+            lock_file = app_data_dir / "lock_states.json"
+            
+            with open(lock_file, 'w', encoding='utf-8') as f:
+                json.dump(self.lock_states, f, indent=2)
+        except Exception as e:
+            print(f"DEBUG: Error saving lock states: {e}")
+    
+    def load_lock_states_from_file(self):
+        """Load lock states from file"""
+        try:
+            if getattr(sys, 'frozen', False):
+                app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
+            else:
+                app_data_dir = Path(__file__).parent
+            
+            lock_file = app_data_dir / "lock_states.json"
+            
+            if lock_file.exists():
+                with open(lock_file, 'r', encoding='utf-8') as f:
+                    self.lock_states = json.load(f)
+        except Exception as e:
+            print(f"DEBUG: Error loading lock states: {e}")
+            self.lock_states = {}
+    
+    def is_class_locked(self, class_name):
+        """Check if a class is locked"""
+        return self.lock_states.get(class_name, False)
     
     def clear_classes(self):
         """Clear all detected classes"""
@@ -673,6 +853,8 @@ class ClassButton(QPushButton):
             icon_file = icon_path / "iopicon.png"
         elif self.class_name == "Cra":
             icon_file = icon_path / "craicon.png"
+        elif self.class_name == "Ouginak":
+            icon_file = icon_path / "ouginakicon.png"
         else:
             icon_file = None
         
@@ -729,6 +911,26 @@ class ClassButton(QPushButton):
                     background-color: rgba(74, 158, 255, 0.35);
                 }
             """)
+        elif self.class_name == "Ouginak":
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(139, 69, 19, 0.15);
+                    color: #8b4513;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: 1px solid rgba(139, 69, 19, 0.4);
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    text-align: left;
+                }
+                QPushButton:hover {
+                    background-color: rgba(139, 69, 19, 0.25);
+                    border: 1px solid rgba(139, 69, 19, 0.6);
+                }
+                QPushButton:pressed {
+                    background-color: rgba(139, 69, 19, 0.35);
+                }
+            """)
         
         # Connect click event
         self.clicked.connect(self.toggle_tracker)
@@ -759,6 +961,9 @@ class ClassButton(QPushButton):
                 elif self.class_name == "Cra":
                     # Launch Waksense.exe with --cra argument
                     self.tracker_process = subprocess.Popen([sys.executable, "--cra"])
+                elif self.class_name == "Ouginak":
+                    # Launch Waksense.exe with --ouginak argument
+                    self.tracker_process = subprocess.Popen([sys.executable, "--ouginak"])
                 else:
                     return
             else:
@@ -767,6 +972,8 @@ class ClassButton(QPushButton):
                     script_path = Path("Iop/wakfu_iop_resource_tracker.py")
                 elif self.class_name == "Cra":
                     script_path = Path("Cra/wakfu_resource_tracker_fullscreen.py")
+                elif self.class_name == "Ouginak":
+                    script_path = Path("Ouginak/wakfu_ouginak_resource_tracker.py")
                 else:
                     return
                 
@@ -909,6 +1116,47 @@ class ClassButton(QPushButton):
                     }
                     QPushButton:pressed {
                         background-color: rgba(74, 158, 255, 0.35);
+                    }
+                """)
+        elif self.class_name == "Ouginak":
+            if self.is_active:
+                self.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(139, 69, 19, 0.3);
+                        color: #8b4513;
+                        font-size: 11px;
+                        font-weight: 600;
+                        border: 2px solid rgba(139, 69, 19, 0.8);
+                        border-radius: 6px;
+                        padding: 4px 8px;
+                        text-align: left;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(139, 69, 19, 0.4);
+                        border: 2px solid rgba(139, 69, 19, 1.0);
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(139, 69, 19, 0.5);
+                    }
+                """)
+            else:
+                self.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(139, 69, 19, 0.15);
+                        color: #8b4513;
+                        font-size: 11px;
+                        font-weight: 500;
+                        border: 1px solid rgba(139, 69, 19, 0.4);
+                        border-radius: 6px;
+                        padding: 4px 8px;
+                        text-align: left;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(139, 69, 19, 0.25);
+                        border: 1px solid rgba(139, 69, 19, 0.6);
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(139, 69, 19, 0.35);
                     }
                 """)
     
@@ -1188,7 +1436,9 @@ class WakfuClassLauncher(QMainWindow):
         
         # Create horizontal layout for columns
         columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(15)  # Space between IOP and CRA columns
+        columns_layout.setSpacing(15)  # Space between columns
+        columns_layout.setContentsMargins(20, 0, 20, 0)  # Add horizontal margins for centering
+        columns_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the columns
         
         # Iop scrollable area
         iop_scroll = QScrollArea()
@@ -1229,6 +1479,7 @@ class WakfuClassLauncher(QMainWindow):
         iop_scroll.setWidget(self.iop_buttons_container)
         iop_scroll.setMinimumSize(180, 150)  # Responsive minimum size
         iop_scroll.setMaximumWidth(220)  # Maximum width constraint
+        iop_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the scroll area
         columns_layout.addWidget(iop_scroll)
         
         # Cra scrollable area
@@ -1270,9 +1521,58 @@ class WakfuClassLauncher(QMainWindow):
         cra_scroll.setWidget(self.cra_buttons_container)
         cra_scroll.setMinimumSize(180, 150)  # Responsive minimum size
         cra_scroll.setMaximumWidth(220)  # Maximum width constraint
+        cra_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the scroll area
         columns_layout.addWidget(cra_scroll)
         
-        layout.addLayout(columns_layout)
+        # Ouginak scrollable area
+        ouginak_scroll = QScrollArea()
+        ouginak_scroll.setWidgetResizable(True)
+        ouginak_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        ouginak_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        ouginak_scroll.setStyleSheet("""
+            QScrollArea {
+                background-color: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background-color: rgba(255, 255, 255, 0.1);
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: rgba(255, 255, 255, 0.3);
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: rgba(255, 255, 255, 0.5);
+            }
+        """)
+        
+        # Ouginak buttons container
+        self.ouginak_buttons_container = QWidget()
+        self.ouginak_buttons_container.setStyleSheet("""
+            QWidget {
+                background-color: transparent;
+            }
+        """)
+        self.ouginak_buttons_layout = QVBoxLayout(self.ouginak_buttons_container)
+        self.ouginak_buttons_layout.setSpacing(3)  # Small spacing between buttons
+        self.ouginak_buttons_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
+        
+        ouginak_scroll.setWidget(self.ouginak_buttons_container)
+        ouginak_scroll.setMinimumSize(180, 150)  # Responsive minimum size
+        ouginak_scroll.setMaximumWidth(220)  # Maximum width constraint
+        ouginak_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the scroll area
+        columns_layout.addWidget(ouginak_scroll)
+        
+        # Wrapper to center the columns layout
+        wrapper_layout = QHBoxLayout()
+        wrapper_layout.addStretch()  # Add stretch before
+        wrapper_layout.addLayout(columns_layout)  # Add columns in the middle
+        wrapper_layout.addStretch()  # Add stretch after
+        
+        layout.addLayout(wrapper_layout)
         
         # Add stretch to push everything to top
         layout.addStretch()
@@ -1466,6 +1766,8 @@ class WakfuClassLauncher(QMainWindow):
                     self.iop_buttons_container.hide()
                 if hasattr(self, 'cra_buttons_container'):
                     self.cra_buttons_container.hide()
+                if hasattr(self, 'ouginak_buttons_container'):
+                    self.ouginak_buttons_container.hide()
                 
         except Exception as e:
             print(f"DEBUG: Error checking path configuration: {e}")
@@ -1631,6 +1933,8 @@ class WakfuClassLauncher(QMainWindow):
             self.iop_buttons_container.show()
         if hasattr(self, 'cra_buttons_container'):
             self.cra_buttons_container.show()
+        if hasattr(self, 'ouginak_buttons_container'):
+            self.ouginak_buttons_container.show()
         
         # Load and show saved characters
         self.load_saved_characters()
@@ -1843,6 +2147,9 @@ class WakfuClassLauncher(QMainWindow):
             elif class_name == "Cra":
                 self.cra_buttons_layout.addWidget(container)
                 self.cra_buttons_container.show()  # Ensure container is visible
+            elif class_name == "Ouginak":
+                self.ouginak_buttons_layout.addWidget(container)
+                self.ouginak_buttons_container.show()  # Ensure container is visible
             
             # Add to detection overlay
             self.detection_overlay.add_detected_class(class_name, player_name)
@@ -1940,6 +2247,8 @@ class WakfuClassLauncher(QMainWindow):
                         self.iop_buttons_layout.addWidget(container)
                     elif class_name == "Cra":
                         self.cra_buttons_layout.addWidget(container)
+                    elif class_name == "Ouginak":
+                        self.ouginak_buttons_layout.addWidget(container)
                         
                     print(f"DEBUG: Personnage sauvegardé chargé {player_name} ({class_name})")
                 
@@ -2051,6 +2360,12 @@ class WakfuClassLauncher(QMainWindow):
             if child.widget():
                 child.widget().deleteLater()
         
+        # Clear OUGINAK buttons
+        while self.ouginak_buttons_layout.count():
+            child = self.ouginak_buttons_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
         # Clear button references
         self.class_buttons.clear()
     
@@ -2108,6 +2423,11 @@ def main():
             # Launch CRA tracker directly
             from Cra.wakfu_resource_tracker_fullscreen import main as cra_main
             cra_main()
+            return
+        elif "--ouginak" in sys.argv:
+            # Launch OUGINAK tracker directly
+            from Ouginak.wakfu_ouginak_resource_tracker import main as ouginak_main
+            ouginak_main()
             return
     
     # Normal launcher mode

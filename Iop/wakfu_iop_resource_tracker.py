@@ -1070,9 +1070,14 @@ class WakfuIopResourceTracker(QMainWindow):
             app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
             app_data_dir.mkdir(parents=True, exist_ok=True)
             self.config_file = app_data_dir / "iop_positions.json"
+            self.lock_state_file = app_data_dir / "lock_states.json"
         else:
             # Running as script - save to script directory
             self.config_file = self.base_path / "positions_config.json"
+            self.lock_state_file = self.base_path.parent / "lock_states.json"
+        
+        # Load lock state
+        self.is_locked = self.load_lock_state()
         self.auto_save_timer = None
         self.drag_start_position = QPoint()
         self.dragging_concentration = False
@@ -1883,9 +1888,12 @@ class WakfuIopResourceTracker(QMainWindow):
                 print(f"DEBUG: Turn end detected - last spell caster was: '{turn_owner}' (tracked: '{self.tracked_player_name}')")
                 
                 if turn_owner and self.tracked_player_name and turn_owner == self.tracked_player_name:
-                    # The tracked Iop is passing turn - hide overlay
+                    # The tracked Iop is passing turn - hide overlay unless locked
+                    # Reload lock state to check current state
+                    self.is_locked = self.load_lock_state()
                     self.is_iop_turn = False
-                    self.overlay_visible = False
+                    if not self.is_locked:
+                        self.overlay_visible = False
                     
                     # Note: Do NOT cancel pending_preparation_loss - La préparation doit être consommée
                     # au prochain sort qui fait des dégâts, même si des tours passent entre temps.
@@ -1898,8 +1906,11 @@ class WakfuIopResourceTracker(QMainWindow):
                     # No recent spell caster - assume it's the tracked player's turn ending
                     print(f"DEBUG: No recent spell caster - assuming tracked player's turn ending")
                     if self.tracked_player_name:
+                        # Reload lock state to check current state
+                        self.is_locked = self.load_lock_state()
                         self.is_iop_turn = False
-                        self.overlay_visible = False
+                        if not self.is_locked:
+                            self.overlay_visible = False
                         
                         # Note: Do NOT cancel pending_preparation_loss - La préparation doit être consommée
                         # au prochain sort qui fait des dégâts, même si des tours passent entre temps.
@@ -2429,6 +2440,19 @@ class WakfuIopResourceTracker(QMainWindow):
         self.preparation_slide_offset = self.preparation_slide_max  # Start this many pixels above
         
         print("DEBUG: Préparation slide triggered")
+    
+    def load_lock_state(self):
+        """Load lock state from file"""
+        try:
+            if self.lock_state_file.exists():
+                with open(self.lock_state_file, 'r', encoding='utf-8') as f:
+                    lock_states = json.load(f)
+                    # Check for Iop lock state
+                    return lock_states.get('Iop', False)
+            return False
+        except Exception as e:
+            print(f"DEBUG: Error loading lock state: {e}")
+            return False
     
     def save_positions(self):
         """Save current positions to config file"""
