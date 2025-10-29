@@ -2,6 +2,39 @@
 
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [1.0.1] - 2025-10-29
+
+### Ajouté
+- Systeme de logos pour les combos Iop : Ajout d'icones visuelles pour chaque combo (combo1.png a combo5.png)
+- Systeme de de-dedoublonnage des logs : Module LogDeduplicator pour gerer les instances multiples de Wakfu ecrivant dans le meme fichier de log
+- Sauvegarde des positions dans AppData : Les positions des overlays sont maintenant sauvegardees dans %APPDATA%\Roaming\Waksense\ pour persister entre les executions
+- Positions par defaut : Ajout de positions initiales pour les overlays Iop et Cra au lieu de (0, 0)
+- Gestion des instances multiples : Utilisation de timestamps pour detecter et ignorer les lignes dupliquees dans les logs (fenetre de 100ms)
+
+### Ameliore
+- Design uniforme des barres de progression : Barres arrondies (border-radius: 12px) avec style minimaliste identique entre Iop et Cra
+- Suppression des animations de bounce : Retire les animations de rebondissement pour reduire le desordre visuel
+- Retrait des effets de glow : Suppression des effets de lueur pulsante sur les barres pour une interface plus propre
+- Interface de detection : Overlay de detection avec icones de classes et systeme de collapse/expand
+- Fermeture propre de l'application : Amelioration de la gestion de fermeture pour arreter tous les processus trackers
+- Barres de progression personalisees : Rendu custom avec borders arrondis et textes outlines en blanc
+
+### Corrige
+- Combo repeatable dans le meme tour : Les combos peuvent maintenant etre relances plusieurs fois dans le meme tour (completed_combos_this_turn set)
+- Gestion de la Preparation Iop : Systeme de detection de perte de preparation via confirmation de degats
+- Consommation du Courroux : Suivi correct de la consommation du courroux apres utilisation
+- Fermeture du overlay de detection : Le overlay de detection se ferme correctement a la fermeture de l'application
+- Processus trackers orphelins : Tous les processus trackers sont maintenant correctement termines a la fermeture
+
+### Technique
+- Class ConcentrationProgressBar : Barre de progression custom avec animation de gradient fluide
+- Class MinimalProgressBar : Barre de progression minimaliste pour Cra avec style personnalise
+- Class ComboColumnWidget : Widget de colonne pour afficher les combos Iop avec icones
+- Class ComboStepWidget : Widget pour chaque etape de combo avec animation de slide
+- LogDeduplicator : Systeme de detection des doublons base sur les timestamps et le contenu
+- Save paths conditionnels : Utilisation d'AppData pour executable, repertoire script pour developpement
+- Force quit mechanism : QApplication.instance().quit() pour assurer la fermeture complete
+
 ## [1.0.0] - 2025-10-23
 
 ### ✨ Ajouté
