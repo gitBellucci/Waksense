@@ -5,6 +5,27 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 ## [1.0.1] - 2025-10-29
 
 ### Ajouté
+- Tracker Ouginak: suivi de la ressource Rage (0→30), timeline des sorts au format Iop, mode Ougigarou avec consommation de Rage.
+- Barre de Rage: fond anime via rageeffect.gif, indicateur chiffré 0/30, couleurs RG plus visibles.
+- Verrou d'affichage: bouton lock/unlock par classe dans l'overlay de détection pour forcer l'affichage pendant le combat.
+
+### Ameliore
+- Mode Ougigarou: dégradé de la barre plus rouge, GIF plus lumineux (opacité réduite de l'overlay), coût affiché en « n RG » dans la timeline.
+- Overlay de détection: liste des classes centrée verticalement, espacement accru, position de l'overlay déplacée au milieu droit de l'écran et conservée lors du collapse/expand.
+- Fenêtre principale: colonnes centrées et contenants scrollables alignés; meilleure réactivité de la liste des classes détectées.
+
+### Corrige
+- Icône Ouginak dans le launcher: utilisation de ougiicon.png.
+- Incohérence des verrous: l'icône se réinitialise à l'ouverture et l'état interne démarre désormais déverrouillé; lecture de l'état uniquement à la fin de tour.
+- Couts de sorts Ouginak dans la timeline: prise en charge d'Ougigarou avec extraction du premier coût hors mode et affichage « nRG » en mode.
+
+### Technique
+- Sauvegarde et lecture des verrous via lock_states.json (AppData en mode exécutable), réinitialisé à chaque lancement.
+- Mise a jour PyInstaller: rebuild onefile, copie auto vers C:\Users\Shadow\Desktop\exec.
+
+## [1.0.1] - 2025-10-29
+
+### Ajouté
 - Systeme de logos pour les combos Iop : Ajout d'icones visuelles pour chaque combo (combo1.png a combo5.png)
 - Systeme de de-dedoublonnage des logs : Module LogDeduplicator pour gerer les instances multiples de Wakfu ecrivant dans le meme fichier de log
 - Sauvegarde des positions dans AppData : Les positions des overlays sont maintenant sauvegardees dans %APPDATA%\Roaming\Waksense\ pour persister entre les executions
@@ -37,7 +58,7 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 
 ## [1.0.0] - 2025-10-23
 
-### ✨ Ajouté
+###  Ajouté
 - **Application principale** : Interface de détection des classes avec design moderne
 - **Tracker Iop** : Suivi complet des ressources PA/PM/PW et buffs (Concentration, Courroux, Préparation)
 - **Tracker Crâ** : Suivi complet des ressources PA/PM/PW et buffs (Concentration, Affûtage, Précision)
@@ -49,14 +70,14 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 - **Détection automatique** : Scan des logs Wakfu pour détecter les classes
 - **Repositionnement** : Overlays repositionnables avec sauvegarde des positions
 
-### 🔧 Amélioré
+###  Amélioré
 - **Interface utilisateur** : Design minimaliste et moderne avec animations fluides
 - **Gradients animés** : Transitions de couleurs plus douces et naturelles
 - **Barre de progression** : Chargement continu au lieu de sauts de pourcentage
 - **Responsive design** : Interface adaptative pour différentes tailles d'écran
 - **Performance** : Optimisations pour réduire la consommation de ressources
 
-### 🐛 Corrigé
+###  Corrigé
 - **Détection Préparation** : Support des formats avec Concentration/Compulsion
 - **Logique de précision Crâ** : Gestion correcte du talent "Esprit affûté" (limite à 200)
 - **Coûts variables Iop** : Détection précise des procs Impétueux, Charge, Étendard de bravoure
@@ -64,27 +85,27 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 - **Sauvegarde des paramètres** : Persistance des chemins de logs et préférences
 - **Gestion des erreurs** : Amélioration de la robustesse face aux erreurs de logs
 
-### 🎯 Fonctionnalités Spéciales
+###  Fonctionnalités Spéciales
 - **Détection de focus Wakfu** : Overlays masqués quand Wakfu n'est pas la fenêtre active
 - **Coûts dynamiques** : Adaptation automatique des coûts selon les procs détectés
 - **États visuels** : Indicateurs d'état actif/inactif pour les trackers
 - **Collapse/Expand** : Possibilité de réduire l'overlay de détection
 - **Suppression de personnages** : Boutons de suppression dans l'overlay de détection
 
-### 📦 Technique
+###  Technique
 - **Exécutable standalone** : Version compilée sans dépendances externes
 - **Structure modulaire** : Code organisé par classes (Iop/Crâ)
 - **Gestion des ressources** : Intégration des images et icônes dans l'exécutable
 - **Configuration PyInstaller** : Build optimisé pour la distribution
 - **Gestion des chemins** : Support des chemins relatifs et absolus
 
-### 🎮 Compatibilité
+###  Compatibilité
 - **Wakfu** : Compatible avec la version actuelle du jeu
 - **Windows** : Testé sur Windows 10/11
 - **Logs** : Support des logs de chat Wakfu standard
 - **Résolution** : Compatible avec différentes résolutions d'écran
 
-### 📝 Documentation
+###  Documentation
 - **README complet** : Guide d'installation et d'utilisation
 - **Structure du projet** : Documentation de l'architecture
 - **Dépannage** : Solutions aux problèmes courants
