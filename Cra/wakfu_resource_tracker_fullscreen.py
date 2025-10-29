@@ -593,7 +593,7 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         # Cra spells list for turn detection
         self.cra_spells = [
             "Flèche criblante", "Flèche fulminante", "Flèche d'immolation", 
-            "Flèche enflammée", "Flèche Ardente", "Flèche explosive", 
+            "Flèche enflammée", "Flèche ardente", "Flèche explosive", 
             "Flèche cinglante", "Flèche perçante", "Flèche destructrice", 
             "Flèche chercheuse", "Flèche de recul", "Flèche tempête", 
             "Flèche harcelante", "Flèche statique", "Balise de destruction", 
@@ -1584,8 +1584,10 @@ Fenêtre temporelle: {stats['duplicate_window_ms']}ms
                 spell_consumption = 30
             elif "Flèche enflammée" in line:
                 spell_consumption = 60
-            elif "Flèche Ardente" in line:
+            elif "Flèche Ardente" in line or "Flèche ardente" in line:
                 spell_consumption = 30
+            elif "Pluie de flèches" in line or "Pluie de fleches" in line:
+                spell_consumption = 60
             elif "Flèche explosive" in line:
                 spell_consumption = 90
             elif "Flèche cinglante" in line:
