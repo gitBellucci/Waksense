@@ -1076,8 +1076,8 @@ class WakfuIopResourceTracker(QMainWindow):
             self.config_file = self.base_path / "positions_config.json"
             self.lock_state_file = self.base_path.parent / "lock_states.json"
         
-        # Load lock state
-        self.is_locked = self.load_lock_state()
+        # Default to unlocked on startup; lock state may be checked dynamically later
+        self.is_locked = False
         self.auto_save_timer = None
         self.drag_start_position = QPoint()
         self.dragging_concentration = False

@@ -621,8 +621,8 @@ class WakfuOuginakResourceTracker(QMainWindow):
             self.config_file = base_dir / "positions_config.json"
             self.lock_state_file = base_dir.parent / "lock_states.json"
         
-        # Load lock state
-        self.is_locked = self.load_lock_state()
+        # Default to unlocked on startup; lock state may be checked dynamically later
+        self.is_locked = False
         
         # Log file path
         user_profile = Path.home()

@@ -1,15 +1,15 @@
 {
   "concentration_bar": {
-    "x": 833,
-    "y": 825
+    "x": 824,
+    "y": 808
   },
   "positions_locked": false,
   "preparation_icon": {
-    "x": 950,
-    "y": 185
+    "x": 916,
+    "y": 705
   },
   "combo_group": {
-    "x": 1491,
-    "y": 159
+    "x": 994,
+    "y": 33
   }
 }

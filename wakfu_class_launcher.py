@@ -271,6 +271,17 @@ class DetectionOverlay(QWidget):
         self.main_window = main_window
         self.detected_classes = {}  # {class_name: player_name}
         self.lock_states = {}  # {class_name: is_locked}
+        # Reset lock states on startup so overlays default to unlocked
+        try:
+            if getattr(sys, 'frozen', False):
+                app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
+            else:
+                app_data_dir = Path(__file__).parent
+            app_data_dir.mkdir(parents=True, exist_ok=True)
+            with open(app_data_dir / "lock_states.json", 'w', encoding='utf-8') as f:
+                json.dump({}, f)
+        except Exception:
+            pass
         self.is_collapsed = False
         self.is_interacting = False  # Track if user is interacting with overlay
         
@@ -279,9 +290,9 @@ class DetectionOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(300, 200)
         
-        # Position in top-right corner - flèche collée au bord droit
+        # Position at middle-right of the screen
         screen = QApplication.primaryScreen().geometry()
-        self.move(screen.width() - 300, 20)
+        self.move(screen.width() - self.width(), max(0, (screen.height() - self.height()) // 2))
         
         # Setup UI
         self.setup_ui()
@@ -320,8 +331,9 @@ class DetectionOverlay(QWidget):
         # Classes container
         self.classes_container = QWidget()
         self.classes_layout = QVBoxLayout(self.classes_container)
-        self.classes_layout.setSpacing(2)  # Reduced spacing between characters
-        self.classes_layout.setContentsMargins(0, 0, 0, 0)
+        self.classes_layout.setSpacing(6)  # Slightly larger spacing between characters
+        self.classes_layout.setContentsMargins(8, 8, 8, 8)
+        self.classes_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         self.content_layout.addWidget(self.classes_container)
         
         # Collapse button
@@ -369,7 +381,7 @@ class DetectionOverlay(QWidget):
             self.collapse_button.setFixedSize(20, 150)  # Reduced height
             self.setFixedSize(20, 150)  # Reduced height
             # Keep arrow at right edge of screen
-            self.move(screen.width() - 20, 20)
+            self.move(screen.width() - 20, max(0, (screen.height() - self.height()) // 2))
         else:
             # Expand: show content, change button
             self.content_container.show()
@@ -377,7 +389,7 @@ class DetectionOverlay(QWidget):
             self.collapse_button.setFixedSize(20, 150)  # Reduced height
             self.setFixedSize(250, 150)  # Reduced width and height
             # Move back to original position
-            self.move(screen.width() - 250, 20)
+            self.move(screen.width() - self.width(), max(0, (screen.height() - self.height()) // 2))
     
     def add_detected_class(self, class_name, player_name):
         """Add a detected class to the overlay"""
@@ -515,11 +527,11 @@ class DetectionOverlay(QWidget):
                     }
                 """)
             
-            # Add to container - pseudo plus près de la flèche
-            container_layout.addStretch()  # Push content to the right
+            # Add to container centered
             container_layout.addWidget(icon_label)
             container_layout.addWidget(lock_button)
             container_layout.addWidget(name_label)
+            container_layout.addStretch()  # balance spacing after content
             
             # Create delete button
             delete_button = QPushButton("×")
@@ -854,7 +866,8 @@ class ClassButton(QPushButton):
         elif self.class_name == "Cra":
             icon_file = icon_path / "craicon.png"
         elif self.class_name == "Ouginak":
-            icon_file = icon_path / "ouginakicon.png"
+            # Use the correct Ouginak icon file name
+            icon_file = icon_path / "ougiicon.png"
         else:
             icon_file = None
         
