@@ -73,7 +73,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # Disable UPX to avoid compression issues
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # No console window
@@ -83,5 +83,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(spec_file_dir / 'Waksense.ico'),  # Application icon
+    onefile=True,  # Single executable file
 )
 

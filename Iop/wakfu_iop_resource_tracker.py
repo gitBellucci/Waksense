@@ -1063,9 +1063,16 @@ class WakfuIopResourceTracker(QMainWindow):
         user_profile = Path.home()
         self.log_file_path = user_profile / "AppData" / "Roaming" / "zaap" / "gamesLogs" / "wakfu" / "logs" / "wakfu_chat.log"
         
-        # Position saving
+        # Position saving - use AppData for executable, script dir for development
         self.positions_locked = False
-        self.config_file = self.base_path / "positions_config.json"
+        if getattr(sys, 'frozen', False):
+            # Running as executable - save to AppData
+            app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
+            app_data_dir.mkdir(parents=True, exist_ok=True)
+            self.config_file = app_data_dir / "iop_positions.json"
+        else:
+            # Running as script - save to script directory
+            self.config_file = self.base_path / "positions_config.json"
         self.auto_save_timer = None
         self.drag_start_position = QPoint()
         self.dragging_concentration = False
@@ -2469,6 +2476,13 @@ class WakfuIopResourceTracker(QMainWindow):
     
     def load_positions(self):
         """Load positions from config file"""
+        # Set default initial positions if no config exists
+        default_positions = {
+            'concentration_bar': {'x': 509, 'y': 892},
+            'preparation_icon': {'x': 256, 'y': 558},
+            'combo_group': {'x': 23, 'y': 513}
+        }
+        
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -2477,12 +2491,21 @@ class WakfuIopResourceTracker(QMainWindow):
                 if 'concentration_bar' in positions:
                     x, y = positions['concentration_bar']['x'], positions['concentration_bar']['y']
                     self.concentration_bar.move(x, y)
+                else:
+                    # Use default position
+                    self.concentration_bar.move(default_positions['concentration_bar']['x'], default_positions['concentration_bar']['y'])
                 
                 # Load combo group absolute position
                 if 'combo_group' in positions:
                     self.combo_group_absolute_x = positions['combo_group']['x']
                     self.combo_group_absolute_y = positions['combo_group']['y']
-                    # Apply to combo widgets
+                elif 'combo_group' in default_positions:
+                    # Use default position if not in config
+                    self.combo_group_absolute_x = default_positions['combo_group']['x']
+                    self.combo_group_absolute_y = default_positions['combo_group']['y']
+                
+                # Apply combo positions to widgets
+                if self.combo_group_absolute_x is not None and self.combo_group_absolute_y is not None:
                     for combo_widget in self.combo_ui_elements:
                         if combo_widget.isVisible():
                             combo_spacing = 45
@@ -2504,6 +2527,12 @@ class WakfuIopResourceTracker(QMainWindow):
                     self.preparation_absolute_y = positions['preparation_icon']['y']
                     self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
                     self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                elif 'preparation_icon' in default_positions:
+                    # Use default position if not in config
+                    self.preparation_absolute_x = default_positions['preparation_icon']['x']
+                    self.preparation_absolute_y = default_positions['preparation_icon']['y']
+                    self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                    self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
                 elif 'preparation_offset' in positions:
                     # Old format: convert offsets to absolute position after concentration bar is positioned
                     self.preparation_offset_x = positions['preparation_offset']['x']
@@ -2516,6 +2545,15 @@ class WakfuIopResourceTracker(QMainWindow):
                 
                 if 'positions_locked' in positions:
                     self.positions_locked = positions['positions_locked']
+            else:
+                # No config file exists, use default positions
+                self.concentration_bar.move(default_positions['concentration_bar']['x'], default_positions['concentration_bar']['y'])
+                self.combo_group_absolute_x = default_positions['combo_group']['x']
+                self.combo_group_absolute_y = default_positions['combo_group']['y']
+                self.preparation_absolute_x = default_positions['preparation_icon']['x']
+                self.preparation_absolute_y = default_positions['preparation_icon']['y']
+                self.preparation_icon.move(self.preparation_absolute_x, self.preparation_absolute_y)
+                self.preparation_counter.move(self.preparation_absolute_x, self.preparation_absolute_y)
         except Exception as e:
             pass  # Silently handle load errors
     

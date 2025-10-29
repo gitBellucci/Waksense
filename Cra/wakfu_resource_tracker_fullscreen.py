@@ -606,14 +606,16 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
         
         # Position locking and saving system
         self.positions_locked = False
-        # Get the directory where the script is located (works for both script and executable)
+        # Use AppData for executable, script dir for development
         if getattr(sys, 'frozen', False):
-            # Running as executable - look in the bundled Cra folder
-            base_dir = Path(sys._MEIPASS) / "Cra"
+            # Running as executable - save to AppData
+            app_data_dir = Path.home() / "AppData" / "Roaming" / "Waksense"
+            app_data_dir.mkdir(parents=True, exist_ok=True)
+            self.config_file = app_data_dir / "cra_positions.json"
         else:
-            # Running as script
+            # Running as script - save to script directory
             base_dir = Path(__file__).parent
-        self.config_file = base_dir / "positions_config.json"
+            self.config_file = base_dir / "positions_config.json"
         self.positions_loaded = False  # Track if positions have been loaded
         self.auto_save_timer = None  # Timer for auto-saving positions
         
@@ -766,6 +768,10 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
     
     def load_positions(self):
         """Load positions from config file"""
+        # Default initial positions
+        default_precis_x = 830
+        default_precis_y = 862
+        
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -781,6 +787,10 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
                     x, y = positions['precis_icon']['x'], positions['precis_icon']['y']
                     self.precis_icon.move(x, y)
                     print(f"DEBUG: Moved precis_icon to ({x}, {y})")
+                else:
+                    # Use default position
+                    self.precis_icon.move(default_precis_x, default_precis_y)
+                    print(f"DEBUG: Using default precis_icon position: ({default_precis_x}, {default_precis_y})")
                 
                 # Load lock state
                 if 'positions_locked' in positions:
@@ -788,6 +798,10 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
                     print(f"DEBUG: Positions locked: {self.positions_locked}")
                 
                 print("DEBUG: Positions loaded successfully!")
+            else:
+                # No config file, use default positions
+                self.precis_icon.move(default_precis_x, default_precis_y)
+                print(f"DEBUG: No config file, using default precis_icon position: ({default_precis_x}, {default_precis_y})")
                     
         except Exception as e:
             print(f"DEBUG: Error loading positions: {e}")
@@ -802,6 +816,10 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
     
     def load_container_position(self):
         """Load only the resource container position"""
+        # Default initial position
+        default_container_x = 501
+        default_container_y = 858
+        
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -814,6 +832,14 @@ class WakfuResourceTrackerFullscreen(QMainWindow):
                     print(f"DEBUG: Container current position: ({self.resource_container.x()}, {self.resource_container.y()})")
                     self.resource_container.move(x, y)
                     print(f"DEBUG: Container moved to: ({self.resource_container.x()}, {self.resource_container.y()})")
+                else:
+                    # Use default position
+                    self.resource_container.move(default_container_x, default_container_y)
+                    print(f"DEBUG: Using default container position: ({default_container_x}, {default_container_y})")
+            else:
+                # No config file, use default position
+                self.resource_container.move(default_container_x, default_container_y)
+                print(f"DEBUG: No config file, using default container position: ({default_container_x}, {default_container_y})")
                     
         except Exception as e:
             print(f"DEBUG: Error loading container position: {e}")
@@ -1133,7 +1159,7 @@ Fenêtre temporelle: {stats['duplicate_window_ms']}ms
         
         # Position resource container absolutely (not in layout)
         self.resource_container.setParent(main_widget)
-        self.resource_container.move(0, 0)  # Initial position
+        # Initial position will be loaded from config or use default (501, 858)
         
         # Initially hide overlay since we start out of combat
         self.resource_container.hide()

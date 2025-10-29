@@ -796,19 +796,32 @@ class ClassButton(QPushButton):
         """Stop the tracker"""
         try:
             if self.tracker_process:
+                # Try soft termination first
                 self.tracker_process.terminate()
-                self.tracker_process.wait(timeout=5)
-                self.tracker_process = None
-                self.is_active = False
-                self.update_button_text()
-                
-                # Update overlay state
-                if hasattr(self.main_window, 'detection_overlay'):
-                    self.main_window.detection_overlay.update_button_state(self.class_name, self.player_name)
-                
-                print(f"DEBUG: Tracker {self.class_name} arrêté pour {self.player_name}")
+                try:
+                    self.tracker_process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    # Process didn't terminate gracefully, force kill
+                    print(f"DEBUG: Tracker didn't terminate gracefully, force killing...")
+                    self.tracker_process.kill()
+                    self.tracker_process.wait(timeout=2)
+                finally:
+                    self.tracker_process = None
+                    self.is_active = False
+                    self.update_button_text()
+                    
+                    # Update overlay state
+                    if hasattr(self.main_window, 'detection_overlay'):
+                        self.main_window.detection_overlay.update_button_state(self.class_name, self.player_name)
+                    
+                    print(f"DEBUG: Tracker {self.class_name} arrêté pour {self.player_name}")
         except Exception as e:
             print(f"DEBUG: Erreur lors de l'arrêt du tracker: {e}")
+            if self.tracker_process:
+                try:
+                    self.tracker_process.kill()
+                except:
+                    pass
     
     def update_button_text(self):
         """Update button text based on active state"""
@@ -2043,22 +2056,43 @@ class WakfuClassLauncher(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close event"""
-        # Stop all active trackers
+        # Stop all active trackers with force kill if needed
+        print(f"DEBUG: Closing application, terminating {len([b for b in self.class_buttons.values() if b.is_active])} active trackers")
         for button in self.class_buttons.values():
-            if button.is_active:
-                button.stop_tracker()
+            if button.is_active and button.tracker_process:
+                try:
+                    print(f"DEBUG: Terminating tracker process {button.tracker_process.pid}")
+                    button.tracker_process.terminate()
+                    try:
+                        button.tracker_process.wait(timeout=2)
+                        print(f"DEBUG: Tracker process {button.tracker_process.pid} terminated gracefully")
+                    except:
+                        print(f"DEBUG: Force killing tracker process {button.tracker_process.pid}")
+                        button.tracker_process.kill()
+                        button.tracker_process.wait()
+                        print(f"DEBUG: Tracker process force killed")
+                except Exception as e:
+                    print(f"DEBUG: Error terminating tracker: {e}")
         
         # Stop monitoring
         if hasattr(self, 'monitor_thread'):
             self.monitor_thread.stop_monitoring()
             self.monitor_thread.wait()
         
-        # Close detection overlay
+        # Close detection overlay forcefully
         if hasattr(self, 'detection_overlay'):
-            self.detection_overlay.close()
+            try:
+                self.detection_overlay.hide()
+                self.detection_overlay.close()
+                self.detection_overlay.deleteLater()
+            except:
+                pass
         
         # Save app settings before closing
         self.save_app_settings()
+        
+        # Force quit the application to ensure all windows close
+        QApplication.instance().quit()
         
         event.accept()
 
