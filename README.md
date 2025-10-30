@@ -21,4 +21,5 @@
 
 </div>
 
-## Ce tool n'est plus disponible malheureusement, merci à tous pour votre soutient
+
+## Ce tool n’est malheureusement plus disponible. Merci à tous pour votre soutien
