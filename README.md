@@ -21,7 +21,7 @@
 
 </div>
 
-## Ce tool n’est malheureusement plus disponible. Merci à tous pour votre soutien
+## Cet outil n’est malheureusement plus disponible. Merci à tous pour votre soutien
 
 ## 🚀 Installation
 
@@ -156,6 +156,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
