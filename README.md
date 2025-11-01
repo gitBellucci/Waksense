@@ -23,7 +23,6 @@
 
 ## Cet outil n’est malheureusement plus disponible. Merci à tous pour votre soutien
 
-<img width="1106" height="69" alt="image" src="https://github.com/user-attachments/assets/fa38c7ac-6d2a-401c-8f42-7b256350ab23" />
 
 
 ## 🚀 Installation
@@ -159,6 +158,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 - Proposer des améliorations
 - Ajouter de nouvelles fonctionnalités
 - Améliorer la documentation
+
 
 
 
