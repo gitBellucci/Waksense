@@ -1,4 +1,3 @@
-@ -1,184 +1,88 @@
 # Waksense
 
 **Waksense** est une application de suivi de ressources dans le jeu Wakfu. L'application surveille les logs de votre chat et affiche des overlays informatifs pour optimiser votre gameplay.
