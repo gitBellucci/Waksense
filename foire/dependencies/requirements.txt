@@ -1,0 +1,7 @@
+opencv-python==4.8.1.78
+numpy==1.24.3
+Pillow==10.0.1
+mss==9.0.1
+pyautogui==0.9.54
+pynput==1.7.6
+customtkinter==5.2.2
