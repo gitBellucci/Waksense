@@ -5,7 +5,7 @@ Suite tout-en-un pour piloter vos instances Wakfu : détection automatique des p
 ## 🎯 Objectifs
 - Centraliser toutes vos fenêtres Wakfu, même en multi‑compte.
 - Remonter les informations de combat (tour actif, états, inventaires) sans modifier les fichiers du jeu.
-- Fournir des outils actionnables (overlay, keybinds, auto-focus) avec un comportement identique à **WinActivate**.
+- Fournir des outils actionnables (overlay, keybinds, auto-focus)
 
 ## 🚀 Installation rapide
 1. Téléchargez `Waksense.exe` depuis les releases.
